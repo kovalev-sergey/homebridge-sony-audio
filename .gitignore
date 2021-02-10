@@ -1,3 +1,5 @@
+.DS_Store
+
 # Ignore compiled code
 dist
 
