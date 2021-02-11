@@ -29,6 +29,10 @@
     "home theater av receiver",
     "soundbar"
   ],
+  "funding": {
+    "type" : "kofi",
+    "url" : "https://ko-fi.com/sergeykovalev"
+  },
   "dependencies": {
     "axios": "^0.21.1",
     "fast-xml-parser": "^3.17.6",
