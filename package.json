@@ -3,7 +3,7 @@
   "displayName": "Homebridge Sony Audio",
   "name": "homebridge-sony-audio",
   "version": "1.0.0",
-  "description": "A short description about what your plugin does.",
+  "description": "Homebridge plugin for control Sony's latest home audio devices",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -25,7 +25,10 @@
     "start": "npm run build && node_modules/.bin/homebridge -D -I"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "sony",
+    "home theater av receiver",
+    "soundbar"
   ],
   "dependencies": {
     "axios": "^0.21.1",
