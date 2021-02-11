@@ -29,7 +29,7 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 ### HT-ST5000
 <img src="docs/HT-ST5000.webp">
 
-7.1.2 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology
+> 7.1.2 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology
 
 ### HT-MT500
 <img src="docs/MT-HT500.webp">
