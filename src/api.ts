@@ -71,6 +71,19 @@ export const ApiRequestGetSchemeList = {
   version: '1.0',
 };
 
+/**
+ * This API provides information of WebAPI interface provided by the server.  
+ * Lib: `system`  
+ * This API must not include private information.
+ * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getinterfaceinformation_v1_0)
+ */
+export const ApiRequestGetInterfaceInformation = {
+  method: 'getInterfaceInformation',
+  id: 33,
+  params: [],
+  version: '1.0',
+};
+
 
 type ApiNotification = {
   name: string;
@@ -558,6 +571,42 @@ export interface ApiResponcePlayingContentInfo {
   ];
 }
 
+/**
+ * Provides information of WebAPI interface provided by the server.
+ * This API must not include private information
+ * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getinterfaceinformation_v1_0)
+ */
+export interface ApiResponceInterfaceInformation {
+  id: number;
+  result: [
+    {
+      /**
+       * Version for client to change its behavior w.r.t significant difference within productCategory.  
+       * This version is managed/controlled within each productCategory.
+       * This parameter is composed of "[X].[Y].[Z]", where [X], [Y] and [Z] are string representing integer
+       * and concatenated with period "." in between.
+       */
+      interfaceVersion: string;
+      /**
+       * Model name.
+       */
+      modelName: string;
+      /**
+       * Category name of device.
+       */
+      productCategory: 'camera' | 'tv' | 'internetTV' | 'videoServer' | 'homeTheaterSystem' | 'videoPlayer' | 'personalAudio';
+      /**
+       * More detail product information can be returned if productCategory is not enough.
+       */
+      productName: string;
+      /**
+       * Server name. In case device can launch multiple Scalar WebAPI servers, return this server's name for client to distinguish.
+       */
+      serverName: string;
+    }
+  ];
+}
+
 export class GenericApiError extends Error {
   code: number;
 
@@ -579,6 +628,17 @@ export class UnsupportedVersionApiError extends GenericApiError {
     super(message);
     this.name = 'UNSUPPORTED_VERSION_API';
     this.code = 14;
+  }
+}
+
+export class IncompatibleDeviceCategoryError extends Error {
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, IncompatibleDeviceCategoryError.prototype);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, IncompatibleDeviceCategoryError);
+    }
+    this.name = 'INCOMPATIBLE_DEVICE_CATEGORY';
   }
 }
 

@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
-import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent } from './api';
+import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
@@ -180,6 +180,14 @@ type apiRequest = {
   version: string;
   method: string;
 };
+
+/**
+ * Categories of devices supported by this module
+ */
+const COMPATIBLE_DEVICE_CATEGORIES = [
+  'homeTheaterSystem',
+  'personalAudio', // !not tested
+];
 
 /**
  * Devices terminals which hasn't in getCurrentExternalTerminalsStatus api
@@ -501,6 +509,14 @@ export class SonyDevice extends EventEmitter {
       headers: { 'content-type': 'application/json' },
     });
     axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor);
+
+    // Checks the device against a compatible category of the device
+    const resInterfaceInfo = await axiosInstance.post('/system', JSON.stringify(ApiRequestGetInterfaceInformation));
+    const interfaceInfo = resInterfaceInfo.data as ApiResponceInterfaceInformation;
+    if (!COMPATIBLE_DEVICE_CATEGORIES.includes(interfaceInfo.result[0].productCategory)) {
+      // device has an incompatible category
+      throw new IncompatibleDeviceCategoryError(`Device at ${baseUrl.href} has an incompatible category "${interfaceInfo.result[0].productCategory}"`);
+    }
 
     const resApiInfo = await axiosInstance.post('/guide', JSON.stringify(ApiRequestSupportedApiInfo));
     const apisInfo = resApiInfo.data.result[0];

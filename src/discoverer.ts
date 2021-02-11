@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { SonyDevice } from './sonyDevice';
-import { UnsupportedVersionApiError, GenericApiError } from './api';
+import { UnsupportedVersionApiError, GenericApiError, IncompatibleDeviceCategoryError } from './api';
 import { Client as ssdp } from 'node-ssdp';
 import { Logger } from 'homebridge';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
@@ -65,7 +65,7 @@ export class Discoverer extends EventEmitter {
   }
 
   handleSsdpResponse(headers: Record<string, string>, code: number) {
-    // this.log.debug('Got a response to an m-search:\n%s', JSON.stringify(headers, nullZ, '  '));
+    // this.log.debug('Got a response to an m-search:\n%s', JSON.stringify(headers, null, '  '));
     // Don't handle non 200 code
     if (code !== 200) {
       return;
@@ -137,6 +137,8 @@ export class Discoverer extends EventEmitter {
         })
         .catch(err => {
           if (err instanceof UnsupportedVersionApiError) {
+            this.log.debug(err.message);
+          } else if (err instanceof IncompatibleDeviceCategoryError) {
             this.log.debug(err.message);
           } else {
             this.log.error('message' in err ? err.message : err);
