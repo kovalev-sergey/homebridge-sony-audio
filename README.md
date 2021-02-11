@@ -7,6 +7,7 @@
 
 
 # Homebridge Sony Audio Plugin
+[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 
 This is a Homebridge platform plugin allow control the power, volume and input source on a supported Sony audio products.
 
