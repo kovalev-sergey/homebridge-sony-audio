@@ -1,5 +1,4 @@
 {
-  "private": true,
   "displayName": "Homebridge Sony Audio",
   "name": "homebridge-sony-audio",
   "version": "1.0.0",
