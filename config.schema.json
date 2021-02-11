@@ -8,8 +8,8 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "required": true,
-        "default": "Example Dynamic Platform"
+        "required": false,
+        "default": "Sony Audio Platform"
       }
     }
   }
