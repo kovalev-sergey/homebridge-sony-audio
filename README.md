@@ -81,3 +81,11 @@ Devices are added automatically through the discovery process.
 The discovery process to find products connected to your network, uses the Universal Plug and Play (UPnP) protocols and the Simple Service Discovery Protocol (SSDP). The audio product must be connected to the network and powered on, for the the discovery process to work.
 
 For instructions, see the user manual for your product.
+
+## Setting up
+Finded devices will be publishing externally, so you need paired it seperately:
+1. In Home.app select "Add Accessory"
+2. Click "I Don't Have a code or Cannot Scan"
+3. On the next screen you find the discovered devices
+4. Tap one and enter the pin code from your homebridge instance.
+
