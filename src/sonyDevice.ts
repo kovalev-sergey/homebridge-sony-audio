@@ -586,8 +586,8 @@ export class SonyDevice extends EventEmitter {
             if (finded.length === 1) {
               enabled.push(finded[0]);
               disabled = disabled.filter(d => d.name !== n);
-            } else { // something wrong...
-              this.log.warn(`Device ${this.systemInfo.name} hasn't a notifier ${n} in disabled ${JSON.stringify(disabled)}`);
+            } else { // something wrong... or not. For example HT-ZF9 hasn't a notifyExternalTerminalStatus. See #1
+              this.log.debug(`Device ${this.systemInfo.name} hasn't a notifier ${n} in disabled ${JSON.stringify(disabled)}`);
             }
           });
           // subscribe
