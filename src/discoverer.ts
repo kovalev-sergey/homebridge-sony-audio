@@ -3,7 +3,7 @@ import { SonyDevice } from './sonyDevice';
 import { UnsupportedVersionApiError, GenericApiError, IncompatibleDeviceCategoryError } from './api';
 import { Client as ssdp } from 'node-ssdp';
 import { Logger } from 'homebridge';
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import xmlParcer from 'fast-xml-parser';
 import { URL } from 'url';
 import EventEmitter from 'events';
@@ -26,12 +26,17 @@ export class Discoverer extends EventEmitter {
   private ssdpClient;
   private axiosInstance: AxiosInstance;
   private poller?: NodeJS.Timeout;
+  /**
+   * Storage of the errors to prevent errors flooding
+   */
+  private errors: Map<string, string>;
 
   constructor (
     private readonly log: Logger,
   ) {
     super();
     this.devices = new Map<string, SonyDevice>();
+    this.errors = new Map<string, string>();
 
     this.axiosInstance = axios.create();
     this.axiosInstance.interceptors.response.use(this.responseInterceptor);
@@ -88,6 +93,7 @@ export class Discoverer extends EventEmitter {
     // retrieve the device description
     axios.get(location.href)
       .then((response) => {
+        this.errors.delete(location.href); // clear error if device responded
         let deviceDescription;
         try {
           deviceDescription = xmlParcer.parse(response.data);
@@ -121,7 +127,13 @@ export class Discoverer extends EventEmitter {
             this.log.info('Incompatible device found, skipped:', deviceFriendlyName);
           });
       })
-      .catch(err => this.log.error(`Can't retrieve the device description at ${location.href}: ${err}`));
+      .catch((err: AxiosError) => {
+        // Fixed #1 to stop error log flooding when some devices illegally answer to discovering
+        if (this.errors.get(location.href) !== err.message ) {
+          this.log.error(`Can't retrieve the device description at ${location.href}: ${err}.\nIt looks like you have a problem in your network environment. All the same errors will be omitted.`);
+          this.errors.set(location.href, err.message);
+        }
+      });
   }
 
   createDevice(baseUrl: string, udn: string, opt: Record<string, string>) {
