@@ -79,7 +79,8 @@ export class Discoverer extends EventEmitter {
     if (this.devices.has(usn)) {
       return;
     }
-    
+
+    this.log.debug(`Start registering a new device from the description: ${location}`);
     this.registerDevice(usn, new URL(location));
   }
 
@@ -91,7 +92,7 @@ export class Discoverer extends EventEmitter {
         try {
           deviceDescription = xmlParcer.parse(response.data);
         } catch (error) {
-          this.log.error(`Error response from device during discovery. Error: ${error.code}, ${error.msg}`);
+          this.log.error(`Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
           return;
         }
         const deviceBaseUrl = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_BaseURL'];
@@ -120,7 +121,7 @@ export class Discoverer extends EventEmitter {
             this.log.info('Incompatible device found, skipped:', deviceFriendlyName);
           });
       })
-      .catch(err => this.log.error(err));
+      .catch(err => this.log.error(`Can't retrieve the device description at ${location.href}: ${err}`));
   }
 
   createDevice(baseUrl: string, udn: string, opt: Record<string, string>) {
