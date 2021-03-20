@@ -464,7 +464,9 @@ export class SonyDevice extends EventEmitter {
   }
 
   /**
-   * Return active zone. If no active zone, return `null`
+   * Return active zone.
+   * If no active zone, return `null`.
+   * It's mean that only one zone exist, i.e. no output terminals
    */
   public async getActiveZone():Promise<ExternalTerminal | null> {
     const zones = await this.getZones();
@@ -773,21 +775,19 @@ export class SonyDevice extends EventEmitter {
   public async setVolume(volumeSelector: 0 | 1) {
     const service = 'audio';
     const zone = await this.getActiveZone();
-    if (zone) {
-      const reqSetVolume: ApiRequestSetAudioVolume = {
-        id: 98,
-        method: 'setAudioVolume',
-        params: [
-          {
-            output: zone.uri,
-            volume: volumeSelector === 0 ? '+1' : '-1',
-          },
-        ],
-        version: '1.1',
-      };
-      await this.axiosInstance.post('/' + service, JSON.stringify(reqSetVolume));
-      return volumeSelector;
-    }
+    const reqSetVolume: ApiRequestSetAudioVolume = {
+      id: 98,
+      method: 'setAudioVolume',
+      params: [
+        {
+          output: zone ? zone.uri : '',
+          volume: volumeSelector === 0 ? '+1' : '-1',
+        },
+      ],
+      version: '1.1',
+    };
+    await this.axiosInstance.post('/' + service, JSON.stringify(reqSetVolume));
+    return volumeSelector;
   }
 
   /**
