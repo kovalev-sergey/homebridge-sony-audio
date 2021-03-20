@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
 import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
 import { setTimeout } from 'timers';
@@ -350,7 +350,8 @@ export class SonyDevice extends EventEmitter {
       baseURL: this.baseUrl.href,
       headers: { 'content-type': 'application/json' },
     });
-    this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor);
+    this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
+    this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
 
     this.wsClients = new Map<string, WebSocket>();
   }
@@ -489,14 +490,28 @@ export class SonyDevice extends EventEmitter {
    * Decsription of errors [here](https://developer.sony.com/develop/audio-control-api/api-references/error-codes).
    * @param response
    */
-  static responseInterceptor(response: AxiosResponse) {
-    if ('error' in response.data) {
+  static responseInterceptor(log: Logger) {
+    return (response: AxiosResponse) => {
+      log.debug(`Response from device:\n${JSON.stringify(response.data)}`);
+      if ('error' in response.data) {
       // TODO: add a device ip address for identification of the device
-      const errMsg = `Device API got an error: ${JSON.stringify(response.data)}`;
-      return Promise.reject(new GenericApiError(errMsg));
-    } else {
-      return response;
-    }
+        const errMsg = `Device API got an error: ${JSON.stringify(response.data)}`;
+        return Promise.reject(new GenericApiError(errMsg));
+      } else {
+        return response;
+      }
+    };
+  }
+
+  /**
+   * Logging requests for debug  
+   * @param request
+   */
+  static requestInterceptor(log: Logger) {
+    return (request: AxiosRequestConfig) => {
+      log.debug(`Request to device\n${request.baseURL}:\n${JSON.stringify(request.data)}`);
+      return request;
+    };
   }
 
   /**
@@ -508,7 +523,8 @@ export class SonyDevice extends EventEmitter {
       baseURL: baseUrl.href,
       headers: { 'content-type': 'application/json' },
     });
-    axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor);
+    axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(log));
+    axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(log));
 
     // Checks the device against a compatible category of the device
     const resInterfaceInfo = await axiosInstance.post('/system', JSON.stringify(ApiRequestGetInterfaceInformation));
