@@ -312,7 +312,7 @@ export class SonyAudioAccessory {
     this.platform.log.debug('Set Characteristic VolumeSelector -> ', value);
     const volumeSelector = value === this.platform.Characteristic.VolumeSelector.INCREMENT ? 0 : 1;
     this.device.setVolume(volumeSelector)
-      .then(v => this.callbackWrapper(callback))
+      .then(() => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
@@ -320,14 +320,14 @@ export class SonyAudioAccessory {
     this.platform.log.debug('Set Characteristic Mute -> ', value);
     const mute = !!value;
     this.device.setMute(mute)
-      .then(v => this.callbackWrapper(callback))
+      .then(() => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
   setPower(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Power Characteristic Active -> ', value);
     this.device.setPower(value === this.platform.Characteristic.Active.ACTIVE)
-      .then(p => this.callbackWrapper(callback))
+      .then(() => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
