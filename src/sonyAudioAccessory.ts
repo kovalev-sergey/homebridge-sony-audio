@@ -293,7 +293,7 @@ export class SonyAudioAccessory {
   onChangePower(power: boolean) {
     this.serviceTv.updateCharacteristic(this.platform.Characteristic.Active, power);
     this.serviceTvSpeaker.updateCharacteristic(this.platform.Characteristic.Active, power);
-    this.platform.log.debug('Set Characteristic Active -> ', power);
+    this.platform.log.debug('Set Speaker Characteristic Active -> ', power);
   }
 
   onChangeSource(source: string) {
@@ -312,7 +312,7 @@ export class SonyAudioAccessory {
     this.platform.log.debug('Set Characteristic VolumeSelector -> ', value);
     const volumeSelector = value === this.platform.Characteristic.VolumeSelector.INCREMENT ? 0 : 1;
     this.device.setVolume(volumeSelector)
-      .then(v => this.callbackWrapper(callback, null, v))
+      .then(v => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
@@ -320,14 +320,14 @@ export class SonyAudioAccessory {
     this.platform.log.debug('Set Characteristic Mute -> ', value);
     const mute = !!value;
     this.device.setMute(mute)
-      .then(v => this.callbackWrapper(callback, null, v))
+      .then(v => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
   setPower(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-    this.platform.log.debug('Set Characteristic Active -> ', value);
+    this.platform.log.debug('Set Power Characteristic Active -> ', value);
     this.device.setPower(value === this.platform.Characteristic.Active.ACTIVE)
-      .then(p => this.callbackWrapper(callback, null, p))
+      .then(p => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
   }
 
@@ -345,10 +345,10 @@ export class SonyAudioAccessory {
     this.platform.log.debug('Set Characteristic RemoteKey -> ', value);
     if (value === this.platform.Characteristic.RemoteKey.PLAY_PAUSE) {
       this.device.setPause()
-        .then(() => this.callbackWrapper(callback, null, value))
+        .then(() => this.callbackWrapper(callback))
         .catch(err => this.callbackWrapper(callback, err));
     } else {
-      this.callbackWrapper(callback, null, value);
+      this.callbackWrapper(callback);
     }
   }
 }
