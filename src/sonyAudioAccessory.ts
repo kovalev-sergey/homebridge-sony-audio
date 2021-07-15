@@ -343,12 +343,52 @@ export class SonyAudioAccessory {
 
   setRemoteKey(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Characteristic RemoteKey -> ', value);
-    if (value === this.platform.Characteristic.RemoteKey.PLAY_PAUSE) {
-      this.device.setPause()
+
+    switch (value) {
+      case Characteristic.RemoteKey.ARROW_UP:
+        this.device.setRemoteKey('AAAAAgAAALAAAAB4AQ==')
         .then(() => this.callbackWrapper(callback))
         .catch(err => this.callbackWrapper(callback, err));
-    } else {
-      this.callbackWrapper(callback);
+        break;
+      case Characteristic.RemoteKey.ARROW_DOWN:
+        this.device.setRemoteKey('AAAAAgAAALAAAAB5AQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.ARROW_RIGHT:
+        this.device.setRemoteKey('AAAAAgAAALAAAAB7AQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.ARROW_LEFT:
+        this.device.setRemoteKey('AAAAAgAAALAAAAB6AQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.SELECT:
+        this.device.setRemoteKey('AAAAAgAAADAAAAAMAQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.BACK:
+        this.device.setRemoteKey('AAAAAwAAARAAAAB9AQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.INFORMATION:
+        this.device.setRemoteKey('AAAAAgAAADAAAABTAQ==')
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      case Characteristic.RemoteKey.PLAY_PAUSE:
+        this.device.setPause()
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+        break;
+      default:
+        this.callbackWrapper(callback);
+        break;
     }
+
   }
 }
