@@ -565,7 +565,7 @@ export interface ApiRequestPlayingContentInfo {
  * Sets remote key identified by IR-code to the receiver.
  */
 export interface ApiRequestIrcc {
-  data: '<?xml version="1.0" encoding="utf-8"?>\n<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\n    <s:Body>\n        <u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1">\n            <IRCCCode></IRCCCode>\n        </u:X_SendIRCC>\n    </s:Body>\n</s:Envelope>';
+  data: string;
 }
 
 /**

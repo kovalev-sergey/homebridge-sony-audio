@@ -101,8 +101,10 @@ export class Discoverer extends EventEmitter {
           this.log.error(`Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
           return;
         }
-        const irccControlPath = deviceDescription.root.device['serviceList']?.find(service => service.serviceId === 'urn:schemas-sony-com:serviceId:IRCC')?.['controlURL'];
-        const irccBaseUrl = location.protocol + '://' + location.hostname + ':' + location.port + irccControlPath;
+        // const serviceList: Array<Object> = deviceDescription.root.device['serviceList'];
+        // const irccService = serviceList.find(service => service.serviceId === 'urn:schemas-sony-com:serviceId:IRCC');
+        // const irccControlPath = irccService['controlURL'];
+        const upnpBaseUrl = location.protocol + '//' + location.hostname + ':' + location.port;
         const deviceBaseUrl = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_BaseURL'];
         // const deviceServices = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_ServiceList']?.['av:X_ScalarWebAPI_ServiceType'];
         const deviceFriendlyName = deviceDescription.root.device.friendlyName;
@@ -117,7 +119,7 @@ export class Discoverer extends EventEmitter {
           return;
         }
         
-        this.createDevice(deviceBaseUrl, irccBaseUrl, deviceUDN, { friendlyName: deviceFriendlyName, manufacturer: deviceManufacturer, modelName: deviceModelName})
+        this.createDevice(deviceBaseUrl, upnpBaseUrl, deviceUDN, { friendlyName: deviceFriendlyName, manufacturer: deviceManufacturer, modelName: deviceModelName})
           .then(device => {
             this.devices.set(usn, device);
             // emit an event about new found device
@@ -138,13 +140,13 @@ export class Discoverer extends EventEmitter {
       });
   }
 
-  createDevice(baseUrl: string, irccBaseUrl: string, udn: string, opt: Record<string, string>) {
+  createDevice(baseUrl: string, upnpBaseUrl: string, udn: string, opt: Record<string, string>) {
     return new Promise<SonyDevice>((resolve, reject) => {
     
       const deviceUrl = new URL(baseUrl);
-      const irccUrl = new URL(irccBaseUrl);
+      const upnpUrl = new URL(upnpBaseUrl);
       
-      SonyDevice.createDevice(deviceUrl, irccUrl, udn, this.log)
+      SonyDevice.createDevice(deviceUrl, upnpUrl, udn, this.log)
         .then((device) => {
           device.systemInfo.name = opt.friendlyName ? opt.friendlyName : '';
           device.manufacturer = opt.manufacturer ? opt.manufacturer : device.manufacturer;
