@@ -104,6 +104,7 @@ export class Discoverer extends EventEmitter {
         // const serviceList: Array<Object> = deviceDescription.root.device['serviceList'];
         // const irccService = serviceList.find(service => service.serviceId === 'urn:schemas-sony-com:serviceId:IRCC');
         // const irccControlPath = irccService['controlURL'];
+        // TODO: init controlURL here. It can be different in other devices
         const upnpBaseUrl = location.protocol + '//' + location.hostname + ':' + location.port;
         const deviceBaseUrl = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_BaseURL'];
         // const deviceServices = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_ServiceList']?.['av:X_ScalarWebAPI_ServiceType'];

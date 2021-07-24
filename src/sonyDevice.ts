@@ -902,14 +902,16 @@ export class SonyDevice extends EventEmitter {
   /**
    * Sets remote key identified by IR-code to the receiver.
    */
-  public async setRemoteKey(irCode) {
+  public async setRemoteKey(irCode: string) {
     const irCodeTag = '<IRCCCode>' + irCode + '</IRCCCode>';
     const request: ApiRequestIrcc = {
-      data: '<?xml version="1.0" encoding="utf-8"?>\n<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\n    <s:Body>\n        <u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1">\n            <IRCCCode></IRCCCode>\n        </u:X_SendIRCC>\n    </s:Body>\n</s:Envelope>',
+      data: '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode></IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>',
     };
     const data = request.data.replace('<IRCCCode></IRCCCode>', irCodeTag);
 
-    const res = await this.axiosInstanceSoap.post('/upnp/control/IRCC', data);
+    // TODO: Remove hardcode from requests url. The url can be different on other devices. And init it in the descover phase.
+
+    await this.axiosInstanceSoap.post('/upnp/control/IRCC', data);
     return; 
   }
 }
