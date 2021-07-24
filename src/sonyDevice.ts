@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
-import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
+import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiRequestIrcc, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
@@ -332,15 +332,18 @@ export class SonyDevice extends EventEmitter {
   private _volumeInformation: VolumeInformation[] | null = null;
   
   private axiosInstance: AxiosInstance;
+  private axiosInstanceSoap: AxiosInstance;
   private wsClients: Map<string, WebSocket>;
 
   public baseUrl: URL;
+  public upnpUrl: URL;
   public UDN: string;
   public manufacturer = 'Sony Corporation';
 
-  constructor(baseUrl: URL, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
+  constructor(baseUrl: URL, upnpUrl: URL, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
     super();
     this.baseUrl = baseUrl;
+    this.upnpUrl = upnpUrl;
     this.UDN = udn;
     this.apisInfo = apisInfo;
     this.log = log;
@@ -352,6 +355,16 @@ export class SonyDevice extends EventEmitter {
     });
     this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
     this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
+
+    this.axiosInstanceSoap = axios.create({
+      baseURL: this.upnpUrl.href,
+      headers: { 
+        'SOAPACTION': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"', 
+        'Content-Type': 'text/xml; charset="utf-8"',
+      },
+    });
+    this.axiosInstanceSoap.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
+    this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
 
     this.wsClients = new Map<string, WebSocket>();
   }
@@ -495,10 +508,14 @@ export class SonyDevice extends EventEmitter {
   static responseInterceptor(log: Logger) {
     return (response: AxiosResponse) => {
       log.debug(`Response from device:\n${JSON.stringify(response.data)}`);
-      if ('error' in response.data) {
-      // TODO: add a device ip address for identification of the device
-        const errMsg = `Device API got an error: ${JSON.stringify(response.data)}`;
-        return Promise.reject(new GenericApiError(errMsg));
+      if (typeof response.data === 'object' && response.data !== null) {
+        if ('error' in response.data) {
+          // TODO: add a device ip address for identification of the device
+          const errMsg = `Device API got an error: ${JSON.stringify(response.data)}`;
+          return Promise.reject(new GenericApiError(errMsg));
+        } else {
+          return response;
+        }
       } else {
         return response;
       }
@@ -520,7 +537,7 @@ export class SonyDevice extends EventEmitter {
    * Create and initialize the new device.  
    * Get info about supported api and system
    */
-  public static async createDevice(baseUrl: URL, udn: string, log: Logger) {
+  public static async createDevice(baseUrl: URL, upnpUrl: URL, udn: string, log: Logger) {
     const axiosInstance = axios.create({
       baseURL: baseUrl.href,
       headers: { 'content-type': 'application/json' },
@@ -539,7 +556,7 @@ export class SonyDevice extends EventEmitter {
     const resApiInfo = await axiosInstance.post('/guide', JSON.stringify(ApiRequestSupportedApiInfo));
     const apisInfo = resApiInfo.data.result[0];
 
-    const device = new SonyDevice(baseUrl, udn, apisInfo, log);
+    const device = new SonyDevice(baseUrl, upnpUrl, udn, apisInfo, log);
 
     // Gets general system information for the device.
     // check the request for API version compliance
@@ -880,5 +897,19 @@ export class SonyDevice extends EventEmitter {
     }
     await this.axiosInstance.post('/' + service, JSON.stringify(reqPausePlayingContent));
     return;
+  }
+
+  /**
+   * Sets remote key identified by IR-code to the receiver.
+   */
+  public async setRemoteKey(irCode) {
+    const irCodeTag = '<IRCCCode>' + irCode + '</IRCCCode>';
+    const request: ApiRequestIrcc = {
+      data: '<?xml version="1.0" encoding="utf-8"?>\n<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\n    <s:Body>\n        <u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1">\n            <IRCCCode></IRCCCode>\n        </u:X_SendIRCC>\n    </s:Body>\n</s:Envelope>',
+    };
+    const data = request.data.replace('<IRCCCode></IRCCCode>', irCodeTag);
+
+    const res = await this.axiosInstanceSoap.post('/upnp/control/IRCC', data);
+    return; 
   }
 }
