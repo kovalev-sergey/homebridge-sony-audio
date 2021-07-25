@@ -15,6 +15,7 @@ This is a Homebridge platform plugin allow control the power, volume and input s
 * power – turn on and off
 * volume – control sound levels including mute via iOS Remote
 * input source – identify sound inputs
+* control arrows, select, back and information buttons via iOS Remote
 
 
 For multi-zone environments plugin control current active output zone.
@@ -51,6 +52,18 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 <img src="docs/SRZ.webp">
 
 > Portable Wireless Bluetooth/Wi-Fi speaker
+
+### SRS-RA5000
+<img src="docs/SRS-RA5000_front2-Mid.webp" style="width:45%">
+<img src="docs/SRS-RA5000_top-Mid.webp" style="width:45%">
+
+> Premium Wireless Speaker with Ambient Room-filling Sound
+
+### SRS-RA3000
+<img src="docs/SRS-RA3000_Front_Black-Mid.webp" style="width:45%">
+<img src="docs/SRS-RA3000_Top_Black-Mid.webp" style="width:45%">
+
+> Premium Wireless Speaker with Ambient Room-filling Sound
 
 ## Installation
 If you are new to homebridge, please first read the homebridge [documentation](https://www.npmjs.com/package/homebridge).
