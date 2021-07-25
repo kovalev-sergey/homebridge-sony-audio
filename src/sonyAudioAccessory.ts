@@ -346,37 +346,37 @@ export class SonyAudioAccessory {
 
     switch (value) {
       case this.platform.Characteristic.RemoteKey.ARROW_UP:
-        this.device.setRemoteKey('AAAAAgAAALAAAAB4AQ==')
+        this.device.setUp()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_DOWN:
-        this.device.setRemoteKey('AAAAAgAAALAAAAB5AQ==')
+        this.device.setDown()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_RIGHT:
-        this.device.setRemoteKey('AAAAAgAAALAAAAB7AQ==')
+        this.device.setRigth()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_LEFT:
-        this.device.setRemoteKey('AAAAAgAAALAAAAB6AQ==')
+        this.device.setLeft()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.SELECT:
-        this.device.setRemoteKey('AAAAAgAAADAAAAAMAQ==')
+        this.device.setSelect()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.BACK:
-        this.device.setRemoteKey('AAAAAwAAARAAAAB9AQ==')
+        this.device.setBack()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;
       case this.platform.Characteristic.RemoteKey.INFORMATION:
-        this.device.setRemoteKey('AAAAAgAAADAAAABTAQ==')
+        this.device.setInformation()
           .then(() => this.callbackWrapper(callback))
           .catch(err => this.callbackWrapper(callback, err));
         break;

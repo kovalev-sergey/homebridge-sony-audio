@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
-import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiRequestIrcc, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
+import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
@@ -900,18 +900,76 @@ export class SonyDevice extends EventEmitter {
   }
 
   /**
-   * Sets remote key identified by IR-code to the receiver.
+   * Sends command codes of IR remote commander to device via IP  
+   * Some info [here](https://pro-bravia.sony.net/develop/integrate/ircc-ip/overview/index.html)
+   * @param irCode 
    */
-  public async setRemoteKey(irCode: string) {
-    const irCodeTag = '<IRCCCode>' + irCode + '</IRCCCode>';
-    const request: ApiRequestIrcc = {
-      data: '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode></IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>',
-    };
-    const data = request.data.replace('<IRCCCode></IRCCCode>', irCodeTag);
-
+  public async sendIRCC(irCode: string) {
+    const data = `<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode>${irCode}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>`;
     // TODO: Remove hardcode from requests url. The url can be different on other devices. And init it in the descover phase.
-
     await this.axiosInstanceSoap.post('/upnp/control/IRCC', data);
-    return; 
+  }
+
+  /**
+   * Press Arrow Up to select the menu items
+   * @returns 
+   */
+  public async setUp() {
+    const irccCode = 'AAAAAgAAALAAAAB4AQ==';
+    return this.sendIRCC(irccCode);
+  }
+  
+  /**
+   * Press Arrow Down to select the menu items
+   * @returns 
+   */
+  public async setDown() {
+    const irccCode = 'AAAAAgAAALAAAAB5AQ==';
+    return this.sendIRCC(irccCode);
+  }
+
+  /**
+   * Press Arrow Right to select the menu items
+   * @returns 
+   */
+  public async setRigth() {
+    const irccCode = 'AAAAAgAAALAAAAB7AQ==';
+    return this.sendIRCC(irccCode);
+  }
+
+  /**
+   * Press Arrow Left to select the menu items
+   * @returns 
+   */
+  public async setLeft() {
+    const irccCode = 'AAAAAgAAALAAAAB6AQ==';
+    return this.sendIRCC(irccCode);
+  }
+
+  /**
+   * Press Select to enter the selection
+   * @returns 
+   */
+  public async setSelect() {
+    const irccCode = 'AAAAAgAAADAAAAAMAQ==';
+    return this.sendIRCC(irccCode);
+  }
+
+  /**
+   * Press Back for returns to the previous menu or exits a menu
+   * @returns 
+   */
+  public async setBack() {
+    const irccCode = 'AAAAAwAAARAAAAB9AQ==';
+    return this.sendIRCC(irccCode);
+  }
+
+  /**
+   * Press Information for view some info
+   * @returns 
+   */
+  public async setInformation() {
+    const irccCode = 'AAAAAgAAADAAAABTAQ==';
+    return this.sendIRCC(irccCode);
   }
 }

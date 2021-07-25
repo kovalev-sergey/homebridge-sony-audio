@@ -562,13 +562,6 @@ export interface ApiRequestPlayingContentInfo {
 }
 
 /**
- * Sets remote key identified by IR-code to the receiver.
- */
-export interface ApiRequestIrcc {
-  data: string;
-}
-
-/**
  * Information about the playing content or current selected input.
  */
 export interface ApiResponcePlayingContentInfo {
