@@ -54,26 +54,28 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 > Portable Wireless Bluetooth/Wi-Fi speaker
 
 ### SRS-RA5000
-<img src="docs/SRS-RA5000_front2-Mid.webp" width="45%">
-<img src="docs/SRS-RA5000_top-Mid.webp" width="45%">
-
+<p float="left">
+  <img src="docs/SRS-RA5000_front2-Mid.webp" width="45%">
+  <img src="docs/SRS-RA5000_top-Mid.webp" width="45%">
+</p>
 > Premium Wireless Speaker with Ambient Room-filling Sound
 
 ### SRS-RA3000
-<img src="docs/SRS-RA3000_Front_Black-Mid.webp" width="45%">
-<img src="docs/SRS-RA3000_Top_Black-Mid.webp" width="45%">
-
+<p float="left">
+  <img src="docs/SRS-RA3000_Front_Black-Mid.webp" width="45%">
+  <img src="docs/SRS-RA3000_Top_Black-Mid.webp" width="45%">
+</p>
 > Premium Wireless Speaker with Ambient Room-filling Sound
 
 ## Installation
 If you are new to homebridge, please first read the homebridge [documentation](https://www.npmjs.com/package/homebridge).
 
 ### Install homebridge
-```
+```sh
 npm install -g homebridge
 ```
 ### Install homebridge-sony-audio
-```
+```sh
 npm install -g homebridge-sony-audio
 ```
 
