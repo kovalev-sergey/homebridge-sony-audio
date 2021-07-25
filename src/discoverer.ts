@@ -101,11 +101,19 @@ export class Discoverer extends EventEmitter {
           this.log.error(`Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
           return;
         }
-        // const serviceList: Array<Object> = deviceDescription.root.device['serviceList'];
-        // const irccService = serviceList.find(service => service.serviceId === 'urn:schemas-sony-com:serviceId:IRCC');
-        // const irccControlPath = irccService['controlURL'];
-        // TODO: init controlURL here. It can be different in other devices
-        const upnpBaseUrl = location.protocol + '//' + location.hostname + ':' + location.port;
+        // Retrive IRCC service url
+        const serviceList = deviceDescription.root.device.serviceList.service as Array<{serviceId: string; controlURL: string}>;
+        let irccServiceUrl = '';
+        let irccServiceExist = false;
+        for (let i = 0; i < serviceList.length; i++) {
+          const service = serviceList[i];
+          if (service.serviceId === 'urn:schemas-sony-com:serviceId:IRCC') {
+            irccServiceUrl = service.controlURL;
+            irccServiceExist = true;
+            break;
+          }
+        }
+        const upnpBaseUrl = irccServiceExist ? location.protocol + '//' + location.hostname + ':' + location.port + irccServiceUrl : '';
         const deviceBaseUrl = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_BaseURL'];
         // const deviceServices = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_ServiceList']?.['av:X_ScalarWebAPI_ServiceType'];
         const deviceFriendlyName = deviceDescription.root.device.friendlyName;
@@ -145,7 +153,7 @@ export class Discoverer extends EventEmitter {
     return new Promise<SonyDevice>((resolve, reject) => {
     
       const deviceUrl = new URL(baseUrl);
-      const upnpUrl = new URL(upnpBaseUrl);
+      const upnpUrl = upnpBaseUrl !== '' ? new URL(upnpBaseUrl) : undefined;
       
       SonyDevice.createDevice(deviceUrl, upnpUrl, udn, this.log)
         .then((device) => {

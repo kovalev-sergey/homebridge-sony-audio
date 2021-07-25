@@ -332,15 +332,15 @@ export class SonyDevice extends EventEmitter {
   private _volumeInformation: VolumeInformation[] | null = null;
   
   private axiosInstance: AxiosInstance;
-  private axiosInstanceSoap: AxiosInstance;
+  private axiosInstanceSoap?: AxiosInstance;
   private wsClients: Map<string, WebSocket>;
 
   public baseUrl: URL;
-  public upnpUrl: URL;
+  public upnpUrl?: URL;
   public UDN: string;
   public manufacturer = 'Sony Corporation';
 
-  constructor(baseUrl: URL, upnpUrl: URL, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
+  constructor(baseUrl: URL, upnpUrl: URL | undefined, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
     super();
     this.baseUrl = baseUrl;
     this.upnpUrl = upnpUrl;
@@ -356,16 +356,17 @@ export class SonyDevice extends EventEmitter {
     this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
     this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
 
-    this.axiosInstanceSoap = axios.create({
-      baseURL: this.upnpUrl.href,
-      headers: { 
-        'SOAPACTION': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"', 
-        'Content-Type': 'text/xml; charset="utf-8"',
-      },
-    });
-    this.axiosInstanceSoap.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
-    this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
-
+    if (this.upnpUrl) {
+      this.axiosInstanceSoap = axios.create({
+        baseURL: this.upnpUrl.href,
+        headers: {
+          'SOAPACTION': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"', 
+          'Content-Type': 'text/xml; charset="utf-8"',
+        },
+      });
+      this.axiosInstanceSoap.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
+      this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
+    }
     this.wsClients = new Map<string, WebSocket>();
   }
 
@@ -537,7 +538,7 @@ export class SonyDevice extends EventEmitter {
    * Create and initialize the new device.  
    * Get info about supported api and system
    */
-  public static async createDevice(baseUrl: URL, upnpUrl: URL, udn: string, log: Logger) {
+  public static async createDevice(baseUrl: URL, upnpUrl: URL | undefined, udn: string, log: Logger) {
     const axiosInstance = axios.create({
       baseURL: baseUrl.href,
       headers: { 'content-type': 'application/json' },
@@ -905,9 +906,10 @@ export class SonyDevice extends EventEmitter {
    * @param irCode 
    */
   public async sendIRCC(irCode: string) {
-    const data = `<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode>${irCode}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>`;
-    // TODO: Remove hardcode from requests url. The url can be different on other devices. And init it in the descover phase.
-    await this.axiosInstanceSoap.post('/upnp/control/IRCC', data);
+    if (this.axiosInstanceSoap) {
+      const data = `<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode>${irCode}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>`;
+      await this.axiosInstanceSoap.post('', data);
+    }
   }
 
   /**
