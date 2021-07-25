@@ -58,6 +58,7 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
   <img src="docs/SRS-RA5000_front2-Mid.webp" width="45%">
   <img src="docs/SRS-RA5000_top-Mid.webp" width="45%">
 </p>
+
 > Premium Wireless Speaker with Ambient Room-filling Sound
 
 ### SRS-RA3000
@@ -65,6 +66,7 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
   <img src="docs/SRS-RA3000_Front_Black-Mid.webp" width="45%">
   <img src="docs/SRS-RA3000_Top_Black-Mid.webp" width="45%">
 </p>
+
 > Premium Wireless Speaker with Ambient Room-filling Sound
 
 ## Installation
