@@ -17,6 +17,10 @@
         "-I"
       ],
       "console": "integratedTerminal",
+      "env": {
+        "HOMEBRIDGE_SONY_AUDIO_DEV": "sony-reseiver-dev"
+      },
+      "preLaunchTask": "${defaultBuildTask}"
     }
   ]
 }
