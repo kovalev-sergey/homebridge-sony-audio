@@ -22,7 +22,7 @@ export const enum DiscoveryEvents {
  * already found Sony audio devices and emit events about it
  */
 export class Discoverer extends EventEmitter {
-  private devices: Map<string, SonyDevice | null>;
+  private devices: Map<string, SonyDevice | null | string>;
   private ssdpClient;
   private axiosInstance: AxiosInstance;
   private poller?: NodeJS.Timeout;
@@ -80,6 +80,16 @@ export class Discoverer extends EventEmitter {
     if (!usn || !location) {
       return;
     }
+
+    // According (https://developer.sony.com/develop/audio-control-api/hardware-overview/discovery-process)
+    // The value of the ST header is identical to the one sent in the M-SEARCH request
+    if (headers?.ST !== SSDP_SEARCH_TARGET) {
+      // Found device is not supported by this plugin.
+      // So, add it as a fake device to stop further processing
+      this.devices.set(usn, null);
+      return;
+    }
+
     // If the discovered device is already registered, skip it
     if (this.devices.has(usn)) {
       return;
@@ -90,6 +100,13 @@ export class Discoverer extends EventEmitter {
   }
 
   registerDevice(usn: string, location: URL) {
+    if (location.pathname === '/') {
+      // Found device is not supported by this plugin.
+      // So, add it as a fake device to stop further processing
+      this.devices.set(usn, null);
+      return;
+    }
+
     // retrieve the device description
     axios.get(location.href)
       .then((response) => {
@@ -98,9 +115,23 @@ export class Discoverer extends EventEmitter {
         try {
           deviceDescription = xmlParcer.parse(response.data);
         } catch (error) {
-          this.log.error(`Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
+          this.log.debug(`ERROR: Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
           return;
         }
+        // Check for the presence of the `av:X_ScalarWebAPI_DeviceInfo` tag. If not, then this plugin does not support the device. Fix #7
+        if (!deviceDescription?.root?.device?.['av:X_ScalarWebAPI_DeviceInfo']) {
+          // Found device is not supported by this plugin.
+          // So, add it as a fake device to stop further processing
+          this.devices.set(usn, null);
+          return;
+        }
+
+        // Set device status as Registration to prevent double registration
+        if (this.devices.get(usn) === 'REGISTERING') {
+          return;
+        }
+        this.devices.set(usn, 'REGISTERING');
+
         // Retrive IRCC service url
         const serviceList = deviceDescription.root.device.serviceList.service as Array<{serviceId: string; controlURL: string}>;
         let irccServiceUrl = '';
@@ -143,8 +174,9 @@ export class Discoverer extends EventEmitter {
       .catch((err: AxiosError) => {
         // Fixed #1 to stop error log flooding when some devices illegally answer to discovering
         if (this.errors.get(location.href) !== err.message ) {
-          this.log.error(`Can't retrieve the device description at ${location.href}: ${err}.\nIt looks like you have a problem in your network environment. All the same errors will be omitted.`);
+          this.log.debug(`ERROR: Can't retrieve the device description at ${location.href}: ${err}.\nIt looks like you have a problem in your network environment. All the same errors will be omitted.`);
           this.errors.set(location.href, err.message);
+          this.devices.delete(usn);
         }
       });
   }
