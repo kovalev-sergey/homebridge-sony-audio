@@ -1,7 +1,7 @@
 {
   "displayName": "Homebridge Sony Audio",
   "name": "homebridge-sony-audio",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Homebridge plugin for control Sony's latest home audio devices",
   "license": "Apache-2.0",
   "repository": {
