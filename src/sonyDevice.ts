@@ -462,10 +462,10 @@ export class SonyDevice extends EventEmitter {
   /**
    * Return external terminals which are inputs
    */
-  public async getInputs():Promise<ExternalTerminal[] | null> {
+  public async getInputs():Promise<ExternalTerminal[]> {
     const exTerminals = await this.getExternalTerminals();
     const inputs = exTerminals?.filter(t => !RE_EXT_OUTPUT.test(t.uri));
-    return inputs ? inputs : null;
+    return inputs ? inputs : [];
   }
 
   /**

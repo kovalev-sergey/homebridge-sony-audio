@@ -4,9 +4,11 @@ import {
   PlatformAccessory,
   CharacteristicValue,
   CharacteristicSetCallback,
+  CharacteristicGetCallback,
 } from 'homebridge';
 
 import { SonyDevice, DEVICE_EVENTS } from './sonyDevice';
+import { SonyAudioAccessorySettings } from './sonyAudioAccessorySettings';
 import { ExternalTerminal, TerminalTypeMeta } from './api';
 
 import { SonyAudioHomebridgePlatform } from './platform';
@@ -21,13 +23,14 @@ const RECONNECT_TIMEOUT = 5000;
 export class SonyAudioAccessory {
   private serviceTv: Service;
   private serviceTvSpeaker: Service;
-  // private servicesInputs: Service[];
 
   private device: SonyDevice;
   private inputSourceIds: Map<string, number>;
   private inputSources: Map<number, ExternalTerminal>;
 
   private lastErrorMessage = '';
+
+  private accessorySettings!: SonyAudioAccessorySettings;
 
   constructor(
     private readonly platform: SonyAudioHomebridgePlatform,
@@ -57,9 +60,11 @@ export class SonyAudioAccessory {
     
     this.serviceTvSpeaker.setCharacteristic(this.platform.Characteristic.VolumeControlType,
       this.platform.Characteristic.VolumeControlType.ABSOLUTE);
-        
-    this.device.getInputs()
-      .then(terminals => terminals && this.buildInputs(terminals));
+    
+    SonyAudioAccessorySettings.GetInstance(accessory.UUID, platform.api.user.persistPath())
+      .then(settings => this.accessorySettings = settings)
+      .then(() => this.device.getInputs())
+      .then(terminals => this.buildInputs(terminals));
 
     // subcribe to events from device
     this.device.on(DEVICE_EVENTS.VOLUME, volume => this.onChangeVolume(volume));
@@ -91,22 +96,24 @@ export class SonyAudioAccessory {
    * Create inputs based on terminals supported of the device
    * @param terminals 
    */
-  buildInputs(terminals: ExternalTerminal[]) {
-    terminals.forEach((terminal, index) => {
+  async buildInputs(terminals: ExternalTerminal[]) {
+    for (let index = 0; index < terminals.length; index++) {
+      const terminal = terminals[index];
+      
       const inputSourceSubtype = this.getInputSubtype(terminal);
       const identifier = index;
       const serviceInputSource = this.accessory.getService(terminal.uri) ||
         this.accessory.addService(this.platform.Service.InputSource, terminal.uri, inputSourceSubtype);
-      serviceInputSource.updateCharacteristic(this.platform.Characteristic.ConfiguredName, terminal.label ? terminal.label : terminal.title);
-      serviceInputSource.updateCharacteristic(this.platform.Characteristic.IsConfigured, this.platform.Characteristic.IsConfigured.CONFIGURED);
-      // hide readonly terminals
-      if (this.device.isReadonlyTerminal(terminal)) {
-        serviceInputSource.updateCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.HIDDEN);
-        serviceInputSource.updateCharacteristic(this.platform.Characteristic.TargetVisibilityState, this.platform.Characteristic.TargetVisibilityState.HIDDEN);
-      } else {
-        serviceInputSource.updateCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.SHOWN);
-        serviceInputSource.updateCharacteristic(this.platform.Characteristic.TargetVisibilityState, this.platform.Characteristic.TargetVisibilityState.SHOWN);
-      }
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.ConfiguredName, await this.accessorySettings.getInputName(inputSourceSubtype, terminal.label ? terminal.label : terminal.title));
+
+      const defaultVisibility = this.platform.Characteristic.CurrentVisibilityState.SHOWN;
+      const visibility = await this.accessorySettings.getInputVisibility(inputSourceSubtype, defaultVisibility);
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.TargetVisibilityState, visibility);
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.CurrentVisibilityState, visibility);
+      
+      const isConfigured = this.device.isReadonlyTerminal(terminal) ? this.platform.Characteristic.IsConfigured.NOT_CONFIGURED : this.platform.Characteristic.IsConfigured.CONFIGURED;
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.IsConfigured, isConfigured);
+        
       serviceInputSource.updateCharacteristic(this.platform.Characteristic.Identifier, identifier);
       // Determine the input type by the `meta` tag
       let inputSourceType = this.platform.Characteristic.InputSourceType.OTHER;
@@ -191,8 +198,17 @@ export class SonyAudioAccessory {
       // save terminals
       this.inputSources.set(identifier, terminal);
 
+      // add handler for name changing on input source
+      serviceInputSource.getCharacteristic(this.platform.Characteristic.ConfiguredName)
+        .on('set', this.setInputSourceConfiguredName.bind(this, serviceInputSource));
+      serviceInputSource.getCharacteristic(this.platform.Characteristic.CurrentVisibilityState)
+        .on('get', this.getInputSourceCurrentVisibilityState.bind(this, serviceInputSource));
+      serviceInputSource.getCharacteristic(this.platform.Characteristic.TargetVisibilityState)
+        .on('set', this.setInputSourceTargetVisibilityState.bind(this, serviceInputSource))
+        .on('get', this.getInputSourceTargetVisibilityState.bind(this, serviceInputSource));
+
       this.serviceTv.addLinkedService(serviceInputSource);
-    });
+    }
   }
 
   /**
@@ -389,5 +405,40 @@ export class SonyAudioAccessory {
         this.callbackWrapper(callback);
     }
 
+  }
+
+  /**
+   * Rise when changed the source name
+   * @param value 
+   * @param callback 
+   */
+  setInputSourceConfiguredName(serviceInputSource: Service, value: CharacteristicValue, callback: CharacteristicSetCallback) {
+    this.platform.log.debug('Set Characteristic InputSource ConfiguredName -> ', value);
+    this.accessorySettings.setInputName(serviceInputSource.subtype!, value as string)
+      .then(() => callback(null))
+      .catch(err => callback(err));
+  }
+
+  setInputSourceTargetVisibilityState(serviceInputSource: Service, value: CharacteristicValue, callback: CharacteristicSetCallback) {
+    this.platform.log.debug('Set Characteristic InputSource Target Visibility State -> ', value);
+    this.accessorySettings.setInputVisibility(serviceInputSource.subtype!, value as 0 | 1)
+      .then(inputSettings => serviceInputSource.updateCharacteristic(this.platform.Characteristic.CurrentVisibilityState, inputSettings.visibilityState!))
+      .then(() => callback(null))
+      .catch(err => callback(err));
+  }
+
+  getInputSourceCurrentVisibilityState(serviceInputSource: Service, callback: CharacteristicGetCallback) {
+    this.platform.log.debug('Get Characteristic InputSource Current Visibility State');
+    this.accessorySettings.getInputVisibility(serviceInputSource.subtype!, serviceInputSource.getCharacteristic(this.platform.Characteristic.CurrentVisibilityState).value as 0| 1)
+      .then(inputVisibility => callback(null, inputVisibility))
+      .catch(err => callback(err));
+    
+  }
+
+  getInputSourceTargetVisibilityState(serviceInputSource: Service, callback: CharacteristicGetCallback) {
+    this.platform.log.debug('Get Characteristic InputSource Target Visibility State');
+    this.accessorySettings.getInputVisibility(serviceInputSource.subtype!, serviceInputSource.getCharacteristic(this.platform.Characteristic.TargetVisibilityState).value as 0| 1)
+      .then(inputVisibility => callback(null, inputVisibility))
+      .catch(err => callback(err));
   }
 }
