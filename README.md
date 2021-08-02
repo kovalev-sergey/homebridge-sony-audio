@@ -16,6 +16,7 @@ This is a Homebridge platform plugin allow control the power, volume and input s
 * volume – control sound levels including mute via iOS Remote
 * input source – identify sound inputs
 * control arrows, select, back and information buttons via iOS Remote
+* control of input names and their visibility
 
 
 For multi-zone environments plugin control current active output zone.
