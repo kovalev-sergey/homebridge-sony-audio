@@ -1,4 +1,5 @@
 import * as fs from 'fs-extra';
+import { Logger } from 'homebridge';
 import * as path from 'path';
 
 type InputSettings = {
@@ -30,31 +31,53 @@ export class SonyAudioAccessorySettings {
   constructor(
     private readonly uuid: string,
     private readonly storagePath: string,
+    private readonly logger: Logger,
   ) {
     this.filePath = path.resolve(this.storagePath, this.persistKey());
     this.inputs = [];
   }
 
-  static async GetInstance(uuid: string, storagePath: string) {
-    const settings = new SonyAudioAccessorySettings(uuid, storagePath);
+  static async GetInstance(uuid: string, storagePath: string, logger: Logger) {
+    // HOOBS return not existing path. #10
+    // So, create it if it doesn't exist
+    try {
+      await fs.ensureDir(storagePath);
+    } catch (error) {
+      logger.debug(`The path to save the accessory settings doesn't exist and can't be created: ${storagePath}\nError\n${JSON.stringify(error)}`);
+      logger.debug('Accessory settings will be reset after bridge restart');
+    }
+
+    const settings = new SonyAudioAccessorySettings(uuid, storagePath, logger);
     await settings.loadSettings();
     return settings;
   }
 
-  saveSettings() {
+  private async saveSettings(): Promise<void> {
     // Allocate item for saving
     const item = {
       inputs: this.inputs,
     };
-    return fs.writeJson(this.filePath, item);
+    try {
+      await fs.writeJson(this.filePath, item);
+      this.logger.debug(`Settings has been saved at path ${this.filePath}`);
+    } catch (error) {
+      this.logger.debug(`An error occurred while saving the settings.\nError\n${JSON.stringify(error)}`);
+      this.logger.debug('Accessory settings will be reset after bridge restart');
+    }
   }
 
-  async loadSettings() {
+  private async loadSettings(): Promise<void> {
     if (!await fs.pathExists(this.filePath)) {
+      this.logger.debug(`Settings not found at path ${this.filePath}`);
       return;
     }
-    const settings = await fs.readJson(this.filePath);
-    this.inputs = settings.inputs;
+    try {
+      const settings = await fs.readJson(this.filePath);
+      this.logger.debug(`Settings has been loaded from ${this.filePath}`);
+      this.inputs = settings.inputs;
+    } catch (error) {
+      this.logger.debug(`An error occurred while loading the settings.\nError\n${JSON.stringify(error)}`);
+    }
   }
 
   private getInput(id: string) {

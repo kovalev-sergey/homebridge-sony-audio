@@ -61,7 +61,7 @@ export class SonyAudioAccessory {
     this.serviceTvSpeaker.setCharacteristic(this.platform.Characteristic.VolumeControlType,
       this.platform.Characteristic.VolumeControlType.ABSOLUTE);
     
-    SonyAudioAccessorySettings.GetInstance(accessory.UUID, platform.api.user.persistPath())
+    SonyAudioAccessorySettings.GetInstance(accessory.UUID, platform.api.user.persistPath(), this.platform.log)
       .then(settings => this.accessorySettings = settings)
       .then(() => this.device.getInputs())
       .then(terminals => this.buildInputs(terminals));
