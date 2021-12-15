@@ -5,6 +5,7 @@ import { Client as ssdp } from 'node-ssdp';
 import { Logger } from 'homebridge';
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import xmlParcer from 'fast-xml-parser';
+import type { ValidationError } from 'fast-xml-parser';
 import { URL } from 'url';
 import EventEmitter from 'events';
 
@@ -16,6 +17,8 @@ const SSDP_SEARCH_TARGET = 'urn:schemas-sony-com:service:ScalarWebAPI:1';
 export const enum DiscoveryEvents {
   NewDeviceFound = 'new-device-found'
 }
+
+type XmlParserError = ValidationError['err'];
 
 /**
  * An instance of this class is periodically try to discover a new or
@@ -115,7 +118,7 @@ export class Discoverer extends EventEmitter {
         try {
           deviceDescription = xmlParcer.parse(response.data);
         } catch (error) {
-          this.log.debug(`ERROR: Can't parse the response from device during discovery. Error: ${error.code}, ${error.msg}`);
+          this.log.debug(`ERROR: Can't parse the response from device during discovery. Error: ${(error as XmlParserError).code}, ${(error as XmlParserError).msg}`);
           return;
         }
         // Check for the presence of the `av:X_ScalarWebAPI_DeviceInfo` tag. If not, then this plugin does not support the device. Fix #7
