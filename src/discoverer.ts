@@ -144,7 +144,8 @@ export class Discoverer extends EventEmitter {
             break;
           }
         }
-        const upnpBaseUrl = irccServiceExist ? location.protocol + '//' + location.hostname + ':' + location.port + irccServiceUrl : '';
+        const reAbsoluteUrl = new RegExp('^(?:[a-z]+:)?//', 'i');
+        const upnpBaseUrl = irccServiceExist ? reAbsoluteUrl.test(irccServiceUrl) ? irccServiceUrl : location.protocol + '//' + location.hostname + ':' + location.port + irccServiceUrl : '';
         const deviceBaseUrl = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_BaseURL'];
         // const deviceServices = deviceDescription.root.device['av:X_ScalarWebAPI_DeviceInfo']?.['av:X_ScalarWebAPI_ServiceList']?.['av:X_ScalarWebAPI_ServiceType'];
         const deviceFriendlyName = deviceDescription.root.device.friendlyName;
