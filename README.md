@@ -24,51 +24,45 @@ For multi-zone environments plugin control current active output zone.
 ## Which Sony devices support the Audio Control API?
 The following Sony audio products are accessible via the Homebridge Sony Audio Plugin.
 
-### STR-DN1080
-<img src="docs/STR-DN1080.webp">
+[**Soundbars**](#soundbars)
 
-> 7.2 channel home theater AV receiver
-
-### HT-ST5000
-<img src="docs/HT-ST5000.webp">
-
-> 7.1.2 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology
-
-### HT-MT500
-<img src="docs/MT-HT500.webp">
-
-> 2.1 channel compact soundbar with Wi-Fi/Bluetooth technology
-
-### HT-Z9F/HT-ZF9
-<img src="docs/HT-Z9F_1.webp">
-
-> 3.1 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology
-
-### HT-CT800
 <img src="docs/HT-CT800.webp">
 
-> 2.1 channel soundbar with Wi-Fi/Bluetooth technology
+[**Receivers**](#receivers)
 
-### SRS-ZR5
-<img src="docs/SRZ.webp">
+<img src="docs/STR-DN1080.webp">
 
-> Portable Wireless Bluetooth/Wi-Fi speaker
+[**Speakers**](#speakers)
 
-### SRS-RA5000
-<p float="left">
-  <img src="docs/SRS-RA5000_front2-Mid.webp" width="45%">
-  <img src="docs/SRS-RA5000_top-Mid.webp" width="45%">
+<p style="margin:auto;width:40%" >
+<img src="docs/SRS-RA3000_Front_Black-Mid.webp">
 </p>
 
-> Premium Wireless Speaker with Ambient Room-filling Sound
+### **Soundbars**
 
-### SRS-RA3000
-<p float="left">
-  <img src="docs/SRS-RA3000_Front_Black-Mid.webp" width="45%">
-  <img src="docs/SRS-RA3000_Top_Black-Mid.webp" width="45%">
-</p>
+|Device|Description|More information|
+|---|---|---|
+|HT-A9|High Performance Home Theater System|<a href="https://electronics.sony.com/tv-video/tv-video-home-theater-sound-bars/soundbars/p/hta9">Product information|
+|HT-A7000|7.1.2ch Dolby Atmos® Soundbar|<a href="https://electronics.sony.com/tv-video/tv-video-home-theater-sound-bars/soundbars/p/HT-A7000">Product information</a>|
+|HT-A5000|5.1.2ch Dolby Atmos®/ DTS:X® Soundbar|<a href="https://www.sony.co.uk/electronics/sound-bars/ht-a5000">Product information</a>|
+|HT-ST5000|7.1.2 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology|<a href="https://www.sony.com/electronics/sound-bars/ht-st5000">Product information</a>|
+|HT-MT500|2.1 channel compact soundbar with Wi-Fi/Bluetooth technology||
+|HT-ZF9|3.1 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology|<a href="https://www.sony.co.uk/electronics/sound-bars/ht-zf9">Product overview</a>|
+|HT-Z9F|3.1 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology|<a href="https://www.sony.com/electronics/sound-bars/ht-z9f">Product overview</a>|
+|HT-CT800|2.1 channel soundbar with Wi-Fi/Bluetooth technology||
+  
 
-> Premium Wireless Speaker with Ambient Room-filling Sound
+### **Receivers**
+|Device|Description|More information|
+|---|---|---|
+|STR-DN1080|7.2 channel home theater AV receiver|<a href="https://www.sony.co.uk/electronics/av-receivers/str-dn1080">Product information</a>|
+
+### **Speakers**
+|Device|Description|More information|
+|---|---|---|
+|DeviceSRS-RA5000|Premium Wireless Speaker with Ambient Room-filling Sound|<a href="https://www.sony.co.uk/electronics/wireless-speakers/srs-ra5000" target="_blank">Product information</a>|
+|SRS-RA3000|Premium Wireless Speaker with Ambient Room-filling Sound|<a href="https://www.sony.co.uk/electronics/wireless-speakers/srs-ra3000" target="_blank">Product information</a>|
+|SRS-ZR5|Portable Wireless Bluetooth/Wi-Fi speaker"|
 
 ## Installation
 If you are new to homebridge, please first read the homebridge [documentation](https://www.npmjs.com/package/homebridge).
