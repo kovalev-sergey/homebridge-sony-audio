@@ -72,7 +72,7 @@ export class SonyAudioHomebridgePlatform implements DynamicPlatformPlugin {
 
   publishDevice(device: SonyDevice) {
     // generate a unique id for the accessory this should be generated from
-    const uuid = this.api.hap.uuid.generate(device.UDN + process.env.HOMEBRIDGE_SONY_AUDIO_DEV || '');
+    const uuid = this.api.hap.uuid.generate(device.UDN + (process.env.HOMEBRIDGE_SONY_AUDIO_DEV || ''));
 
     // see if an accessory with the same uuid has already been registered and restored from
     // the cached devices we stored in the `configureAccessory` method above
