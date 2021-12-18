@@ -247,6 +247,7 @@ export class SonyAudioAccessory {
       .then(() => this.device.getActiveInput()) // get active source
       .then(terminal => terminal && this.onChangeSource(terminal.uri))
       .then(() => this.lastErrorMessage = '') // reset the error
+      .then(() => this.device.subscribe()) // subscribe to notifications
       .catch(err => {
         // log an error if the same error has not been logged before
         if (this.lastErrorMessage !== err.message) {
