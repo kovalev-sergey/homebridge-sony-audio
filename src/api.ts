@@ -85,7 +85,7 @@ export const ApiRequestGetInterfaceInformation = {
 };
 
 
-type ApiNotification = {
+export type ApiNotification = {
   name: string;
   version: string;
 };
