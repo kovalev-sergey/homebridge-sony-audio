@@ -29,6 +29,7 @@ export class SonyAudioAccessory {
   private inputSources: Map<number, ExternalTerminal>;
 
   private lastErrorMessage = '';
+  private reconnectTimeout: NodeJS.Timeout | undefined;
 
   private accessorySettings!: SonyAudioAccessorySettings;
 
@@ -71,6 +72,7 @@ export class SonyAudioAccessory {
     this.device.on(DEVICE_EVENTS.MUTE, mute => this.onChangeMute(mute));
     this.device.on(DEVICE_EVENTS.POWER, power => this.onChangePower(power));
     this.device.on(DEVICE_EVENTS.SOURCE, source => this.onChangeSource(source));
+    this.device.on(DEVICE_EVENTS.RESTORE, () => this.initAccessoryCharacteristics());
 
     
     this.initAccessoryCharacteristics();
@@ -212,9 +214,14 @@ export class SonyAudioAccessory {
   }
 
   /**
-   * Init accessory characteristics and if got error, try repeat it after `RECONNECT_TIMEOUT` timout
+   * Init accessory characteristics and if got error, try repeat it after `RECONNECT_TIMEOUT` timeout
    */
   initAccessoryCharacteristics() {
+    // initAccessoryCharacteristics can be calls by itself and from DEVICE_EVENTS.RESTORE
+    // so, if device connection has been restored, we don't need to reinit characteristics after timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
     Promise.resolve()
       .then(() => this.device.getPowerState()) // get Power Status
       .then(power => this.onChangePower(power))
@@ -247,7 +254,7 @@ export class SonyAudioAccessory {
       .then(() => this.device.getActiveInput()) // get active source
       .then(terminal => terminal && this.onChangeSource(terminal.uri))
       .then(() => this.lastErrorMessage = '') // reset the error
-      .then(() => this.device.subscribe()) // subscribe to notifications
+      // .then(() => this.device.subscribe()) // subscribe to notifications
       .catch(err => {
         // log an error if the same error has not been logged before
         if (this.lastErrorMessage !== err.message) {
@@ -255,7 +262,7 @@ export class SonyAudioAccessory {
           this.lastErrorMessage = err.message;
         }
         // try init the characteristics again after a while
-        setTimeout(() => {
+        this.reconnectTimeout = setTimeout(() => {
           this.platform.log.debug(`Device ${this.device.systemInfo.name}: trying reinit the device...`);
           this.initAccessoryCharacteristics();
         }, RECONNECT_TIMEOUT);

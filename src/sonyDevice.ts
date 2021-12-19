@@ -1,10 +1,9 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
-import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError } from './api';
+import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError, ApiNotification } from './api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
-import { setTimeout } from 'timers';
 import { EventEmitter } from 'events';
 
 /**
@@ -174,6 +173,8 @@ export const enum DEVICE_EVENTS {
   MUTE = 'mute',
   POWER = 'power',
   SOURCE = 'source',
+  /** Emit when device has been restored connection */
+  RESTORE = 'restore',
 }
 
 type apiRequest = {
@@ -298,9 +299,27 @@ const SUBSCRIBE_NOTIFICATIONS = [
 ];
 
 const RECONNECT_TIMEOUT = 5000;
+const REQUEST_TIMEOUT = 5000;
+const WEBSOCKET_REQUEST_TIMEOUT = 3000;
+const WEBSOCKET_HEARTBEAT_INTERVAL = 60 * 1000;
+
 
 export class SonyDevice extends EventEmitter {
   private readonly log: Logger;
+  /** The device is creating. */
+  static CREATING = 0;
+  /** The device is ready to communicate. */
+  static READY = 1;
+  /** The device is in the process of closing. */
+  static CLOSING = 2;
+  /** The current state of the device */
+  private readyState:
+    | typeof SonyDevice.CREATING
+    | typeof SonyDevice.READY
+    | typeof SonyDevice.CLOSING;
+
+  /** Flag for emitting of the RESORE event, rised when connection has been lost and after restored */
+  private emitRestoreEvent = false;
 
   public systemInfo: SonyDeviceSystemInformation = {
     area: '',
@@ -340,8 +359,9 @@ export class SonyDevice extends EventEmitter {
   public UDN: string;
   public manufacturer = 'Sony Corporation';
 
-  constructor(baseUrl: URL, upnpUrl: URL | undefined, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
+  private constructor(baseUrl: URL, upnpUrl: URL | undefined, udn: string, apisInfo: SonyDeviceApiInfo[], log: Logger) {
     super();
+    this.readyState = SonyDevice.CREATING;
     this.baseUrl = baseUrl;
     this.upnpUrl = upnpUrl;
     this.UDN = udn;
@@ -352,9 +372,10 @@ export class SonyDevice extends EventEmitter {
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl.href,
       headers: { 'content-type': 'application/json' },
+      timeout: REQUEST_TIMEOUT,
     });
     this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
-    this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
+    this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptorLogger(this.log));
 
     if (this.upnpUrl) {
       this.axiosInstanceSoap = axios.create({
@@ -363,13 +384,14 @@ export class SonyDevice extends EventEmitter {
           'SOAPACTION': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"', 
           'Content-Type': 'text/xml; charset="utf-8"',
         },
+        timeout: REQUEST_TIMEOUT,
       });
       this.axiosInstanceSoap.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
-      this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptor(this.log));
+      this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptorLogger(this.log));
     }
     this.wsClients = new Map<string, WebSocket>();
+    this.readyState = SonyDevice.READY;
   }
-
 
   /**
    * Return device id
@@ -527,7 +549,7 @@ export class SonyDevice extends EventEmitter {
    * Logging requests for debug  
    * @param request
    */
-  static requestInterceptor(log: Logger) {
+  static requestInterceptorLogger(log: Logger) {
     return (request: AxiosRequestConfig) => {
       log.debug(`Request to device\n${request.baseURL}:\n${JSON.stringify(request.data)}`);
       return request;
@@ -542,9 +564,10 @@ export class SonyDevice extends EventEmitter {
     const axiosInstance = axios.create({
       baseURL: baseUrl.href,
       headers: { 'content-type': 'application/json' },
+      timeout: 0, // when device is turning on, some time it has long answer time.
     });
     axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(log));
-    axiosInstance.interceptors.request.use(SonyDevice.requestInterceptor(log));
+    axiosInstance.interceptors.request.use(SonyDevice.requestInterceptorLogger(log));
 
     // Checks the device against a compatible category of the device
     const resInterfaceInfo = await axiosInstance.post('/system', JSON.stringify(ApiRequestGetInterfaceInformation));
@@ -558,7 +581,7 @@ export class SonyDevice extends EventEmitter {
     const apisInfo = resApiInfo.data.result[0];
 
     const device = new SonyDevice(baseUrl, upnpUrl, udn, apisInfo, log);
-
+    
     // Gets general system information for the device.
     // check the request for API version compliance
     const service = 'system';
@@ -577,33 +600,67 @@ export class SonyDevice extends EventEmitter {
    * Initialize notifications for given events
    */
   public subscribe() {
-    SUBSCRIBE_NOTIFICATIONS.forEach(subscriber => {
-      if (!this.wsClients.has(subscriber.service)) {
-        this.wsClients.set(subscriber.service, this.createWebSocket(subscriber.service));
-      }
-    });
+    SUBSCRIBE_NOTIFICATIONS.forEach(subscriber => this.createWebSocket(subscriber.service));
   }
 
   /**
    * Disable all notifications subscriptions and close websocket connections
    */
   public unsubscribe() {
+    this.readyState = SonyDevice.CLOSING;
     this.wsClients.forEach((ws, service) => {
       this.log.debug(`Device ${this.systemInfo.name} unsubscribing from ${service} service`);
-      ws.send(JSON.stringify(this.switchNotifications(1, [], [])));
-      ws.close();
-      ws.removeAllListeners();
+      // unsubscribe from all notifications
+      const disables = this.getAvailibleNotifications(service);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(this.switchNotifications(100, disables, [])));
+      }
     });
-    this.wsClients.clear();
   }
 
-  private createWebSocket(service: string) {
+  /**
+   * Create a new socket for the given service.  
+   * If socket already exist, only request current notifications subscriptions
+   * @param service 
+   * @returns 
+   */
+  private createWebSocket(service: string): void {
+    if (this.wsClients.has(service)) {
+      // if socket already created, request current notifications subscriptions
+      const ws = this.wsClients.get(service)!;
+      if (ws['subscriptionCommand']) {
+        ws.send(ws['subscriptionCommand']);
+      }
+      return;
+    }
     const url = new URL(this.baseUrl.href);
     url.protocol = 'ws';
     url.pathname = url.pathname + '/' + service;
     const ws = new WebSocket(url);
+
+    function heartbeat(device: SonyDevice) {
+      device.log.debug(`Device ${device.systemInfo.name} heartbeat init`);
+      ws['isAlive'] = true;
+      ws['heartbeat'] = setInterval(() => {
+        if (ws['isAlive'] === false) {
+          ws.terminate();
+          return;
+        }
+        device.log.debug(`Device ${device.systemInfo.name} heartbeat`);
+        if (ws['subscriptionCommand']) {
+          ws.send(ws['subscriptionCommand']);
+        }
+        ws['heartbeatTimeout'] = setTimeout(() => {
+          device.log.debug(`Device ${device.systemInfo.name} heartbeat timeout`);
+          ws['isAlive'] = false;
+          ws.terminate();
+        }, WEBSOCKET_REQUEST_TIMEOUT);
+      }, WEBSOCKET_HEARTBEAT_INTERVAL);
+    }
+
     ws.on('open', () => {
       this.log.debug(`Device ${this.systemInfo.name} opened a socked ${url.href}`);
+      heartbeat(this);
       // To get current notification settings, send an empty 'switchNotifications' 
       // message with an ID of '1'
       ws.send(JSON.stringify(this.switchNotifications(1, [], [])));
@@ -613,47 +670,68 @@ export class SonyDevice extends EventEmitter {
       if ('id' in response) {
         if (response.id === 1) { // enable notification
           this.log.debug(`Device ${this.systemInfo.name} received initial message ${data as string}`);
-          const enabled = response.result[0].enabled;
-          let disabled = response.result[0].disabled;
+          const enabled: ApiNotification[] = []; // response.result[0].enabled;
+          const disabled: ApiNotification[] = []; // response.result[0].disabled;
           const shouldEnabled = SUBSCRIBE_NOTIFICATIONS.filter(s => s.service === service)[0].notifications;
-          // find needed notifyers in disabled
-          shouldEnabled.forEach(n => {
-            const finded = disabled.filter(d => d.name === n);
-            if (finded.length === 1) {
-              enabled.push(finded[0]);
-              disabled = disabled.filter(d => d.name !== n);
-            } else { // something wrong... or not. For example HT-ZF9 hasn't a notifyExternalTerminalStatus. See #1
-              this.log.debug(`Device ${this.systemInfo.name} hasn't a notifier ${n} in disabled ${JSON.stringify(disabled)}`);
+          // if shouldEnabled equal to returned enabled, this mean what nothing to do. All ok
+          if (shouldEnabled.length === enabled.length) {
+            return;
+          } 
+          // else we need to resubscribe
+          const all_notifications = [...response.result[0].enabled].concat([...response.result[0].disabled]);
+          for (let i = 0; i < all_notifications.length; i++) {
+            const item = all_notifications[i];
+            if (shouldEnabled.includes(item.name as NotificationMethods)) {
+              enabled.push(item);
+            } else {
+              disabled.push(item);
             }
-          });
-          // subscribe
-          this.log.debug(`Device ${this.systemInfo.name} sent subscribe message ${JSON.stringify(this.switchNotifications(2, disabled, enabled))}`);
-          ws.send(JSON.stringify(this.switchNotifications(2, disabled, enabled)));
+          }
+          if (shouldEnabled.length !== enabled.length) { // something wrong... or not. For example HT-ZF9 hasn't a notifyExternalTerminalStatus. See #1
+            this.log.debug(`Device ${this.systemInfo.name} does not have the required notifier. Should be ${JSON.stringify(shouldEnabled)}, but found ${JSON.stringify(enabled)}`);
+          }
 
-        } else { 
+          this.log.debug(`Device ${this.systemInfo.name} sent subscribe message ${JSON.stringify(this.switchNotifications(2, disabled, enabled))}`);
+          ws['subscriptionCommand'] = JSON.stringify(this.switchNotifications(2, disabled, enabled));
+          ws.send(ws['subscriptionCommand']);
+
+        } else if (response.id === 100) { // unsubscribe from notifications
+          clearInterval(ws['heartbeat']);
+          clearTimeout(ws['heartbeatTimeout']);
+          ws.terminate();
+        } else {
           this.log.debug(`Device ${this.systemInfo.name} received subscription status ${data as string}`);
+          if (this.emitRestoreEvent) {
+            this.emitRestoreEvent = false;
+            this.emit(DEVICE_EVENTS.RESTORE);
+          }
         }
       } else { // here handle received notification
         this.log.debug(`Device ${this.systemInfo.name} received notification ${data as string}`);
         this.handleNotificationMessage(response as unknown as ApiNotificationResponce);
       }
+      clearTimeout(ws['heartbeatTimeout']);
     });
-    ws.on('close', (code) => {
-      if (code !== 1000) { // 1000 is the normal close
-        ws.removeAllListeners();
+    ws.on('close', () => {
+      this.log.debug(`Device ${this.systemInfo.name} socket closed`);
+      this.wsClients.delete(service);
+      // If the connection was closed illegally, recreate it.
+      if (this.readyState !== SonyDevice.CLOSING) {
         setTimeout(() => {
-          this.log.debug(`Device ${this.systemInfo.name} lost connection, reconnecting...`);
+          this.emitRestoreEvent = true;
           this.createWebSocket(service);
         }, RECONNECT_TIMEOUT);
-      } else {
-        this.log.debug(`Device ${this.systemInfo.name} socket closed`);
       }
     });
     ws.on('error', (err) => {
-      this.log.error(`Device ${this.systemInfo.name} has a comunication error: ${err.message}`);
+      this.log.debug(`ERROR: Device ${this.systemInfo.name} has a comunication error: ${err.message}`);
+      if (this.wsClients.has(service)) {
+        this.wsClients.get(service)!.terminate();
+      }
+      this.wsClients.delete(service);
     });
 
-    return ws;
+    this.wsClients.set(service, ws);
   }
 
   /**
@@ -663,7 +741,7 @@ export class SonyDevice extends EventEmitter {
    * @param disable 
    * @param enable 
    */
-  private switchNotifications(id: number, disable: { name: string; version: string }[], enable: { name: string; version: string }[]){
+  private switchNotifications(id: number, disable: ApiNotification[], enable: ApiNotification[]){
     return {
       method: 'switchNotifications',
       id: id,
@@ -673,6 +751,31 @@ export class SonyDevice extends EventEmitter {
       }],
       version: '1.0',
     };
+  }
+
+  /**
+   * Returns all availible notifications of the device
+   * @param service 
+   * @returns 
+   */
+  private getAvailibleNotifications(service: string): ApiNotification[] {
+    const serviceApiInfo = this.apisInfo.find(v => v.service === service);
+    if (!serviceApiInfo) {
+      return [];
+    }
+    const notifications: ApiNotification[] = [];
+    for (let i = 0; i < serviceApiInfo.notifications.length; i++) {
+      const notification = serviceApiInfo.notifications[i];
+      for (let j = 0; j < notification.versions.length; j++) {
+        const version = notification.versions[j];
+        const verNotification = {
+          name: notification.name,
+          version: version.version,
+        };
+        notifications.push(verNotification);
+      }
+    }
+    return notifications;
   }
 
   /**
@@ -729,6 +832,11 @@ export class SonyDevice extends EventEmitter {
               this._externalTerminals.push(updateTerminal);
             }
           }
+        });
+        // if the device is turning off from an external source, a notivication about power doesn't sends.
+        // so, force the power status check
+        this.getPowerState().then((active) => {
+          this.emit(DEVICE_EVENTS.POWER, active);
         });
         break;
       }
