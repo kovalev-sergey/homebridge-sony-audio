@@ -916,6 +916,24 @@ export class SonyDevice extends EventEmitter {
     return volumeSelector;
   }
 
+  public async setVolumeAbsolute(value: number) {
+    const service = 'audio';
+    const zone = await this.getActiveZone();
+    const reqSetVolume: ApiRequestSetAudioVolume = {
+      id: 98,
+      method: 'setAudioVolume',
+      params: [
+        {
+          output: zone ? zone.uri : '',
+          volume: String(value),
+        },
+      ],
+      version: '1.1',
+    };
+    await this.axiosInstance.post('/' + service, JSON.stringify(reqSetVolume));
+    return value;
+  }
+
   /**
    * Sets the power status of the device.
    * @param power
