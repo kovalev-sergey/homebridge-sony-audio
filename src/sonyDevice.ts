@@ -593,14 +593,12 @@ export class SonyDevice extends EventEmitter {
     const resApiInfo = await axiosInstance.post('/guide', JSON.stringify(ApiRequestSupportedApiInfo));
     const apisInfo = resApiInfo.data.result[0];
 
-    const serviceApiInfo = apisInfo.find(v => v.service === 'system');
     let systemInformationVersion = null;
-  
-    for (const service of Array.isArray(serviceApiInfo) ? serviceApiInfo : []) {
-      const api = service.apis.find(api => api.name === 'getSystemInformation');
-      if (api) {
-        systemInformationVersion = api.versions?.[0]?.version || null;
-      }
+
+    const serviceApiInfo = apisInfo.find(v => v.service === 'system');  
+    const api = serviceApiInfo.apis.find(api => api.name === 'getSystemInformation');
+    if (api) {
+      systemInformationVersion = api.versions?.[0]?.version || null;
     }
  
     const ApiRequestSystemInformation = systemInformationVersion === '1.6' ? ApiRequestSystemInformationv1_6 : ApiRequestSystemInformationv1_4;
