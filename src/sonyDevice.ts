@@ -424,13 +424,11 @@ export class SonyDevice extends EventEmitter {
       // get the terminals info from device
 
       const serviceApiInfo = this.apisInfo.find(v => v.service === 'avContent');
-      let currentExternalTerminalsVersion = null;
+      let currentExternalTerminalsVersion: string | null = null;
     
-      for (const service of Array.isArray(serviceApiInfo) ? serviceApiInfo : []) {
-        const api = service.apis.find(api => api.name === 'getCurrentExternalTerminalsStatus');
-        if (api) {
-          currentExternalTerminalsVersion = api.versions?.[0]?.version || null;
-        }
+      const api = serviceApiInfo?.apis.find(api => api.name === 'getCurrentExternalTerminalsStatus');
+      if (api) {
+        currentExternalTerminalsVersion = api.versions?.[0]?.version || null;
       }
    
       const resTerminals = currentExternalTerminalsVersion === '1.2'
