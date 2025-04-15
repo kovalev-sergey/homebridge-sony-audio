@@ -17,11 +17,22 @@ export const ApiRequestSupportedApiInfo = {
  * Request to get a general system information for the device.
  * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getsysteminformation_v1_4).
  */
-export const ApiRequestSystemInformation = {
+export const ApiRequestSystemInformationv1_4 = {
+  method: 'getSystemInformation',
+  id: 64,
+  params: [],
+  version: '1.4',
+};
+
+/**
+ * Request to get a general system information for the device.
+ * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getsysteminformation_v1_6).
+ */
+export const ApiRequestSystemInformationv1_6 = {
   method: 'getSystemInformation',
   id: 65,
   params: [],
-  version: '1.4',
+  version: '1.6',
 };
 
 /**
@@ -29,11 +40,23 @@ export const ApiRequestSystemInformation = {
  * For a device that has no external input or output connectors, this APi should return an empty result with no error codes.
  * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getcurrentexternalterminalsstatus_v1_0).
  */
-export const ApiRequestCurrentExternalTerminalsStatus = {
+export const ApiRequestCurrentExternalTerminalsStatusv1_0 = {
   method: 'getCurrentExternalTerminalsStatus',
   id: 66,
   params: [],
   version: '1.0',
+};
+
+/**
+ * Request to get an information about the current status of all external input and output terminal sources of the device.
+ * For a device that has no external input or output connectors, this APi should return an empty result with no error codes.
+ * Docs [here](https://developer.sony.com/develop/audio-control-api/api-references/api-overview-2#_getcurrentexternalterminalsstatus_v1_2).
+ */
+export const ApiRequestCurrentExternalTerminalsStatusv1_2 = {
+  method: 'getCurrentExternalTerminalsStatus',
+  id: 67,
+  params: [{}],
+  version: '1.2',
 };
 
 /**

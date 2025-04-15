@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
-import { GenericApiError, ApiRequestCurrentExternalTerminalsStatus, ApiRequestSupportedApiInfo, ApiRequestSystemInformation, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError, ApiNotification } from './api';
+import { GenericApiError, ApiRequestCurrentExternalTerminalsStatusv1_0, ApiRequestCurrentExternalTerminalsStatusv1_2, ApiRequestSupportedApiInfo, ApiRequestSystemInformationv1_4, ApiRequestSystemInformationv1_6, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError, ApiNotification } from './api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
@@ -422,7 +422,20 @@ export class SonyDevice extends EventEmitter {
   public async getExternalTerminals(): Promise<ExternalTerminal[] | null> {
     if (!this._externalTerminals) {
       // get the terminals info from device
-      const resTerminals = await this.axiosInstance.post('/avContent', JSON.stringify(ApiRequestCurrentExternalTerminalsStatus));
+
+      const serviceApiInfo = this.apisInfo.find(v => v.service === 'avContent');
+      let currentExternalTerminalsVersion = null;
+    
+      for (const service of Array.isArray(serviceApiInfo) ? serviceApiInfo : []) {
+        const api = service.apis.find(api => api.name === 'getCurrentExternalTerminalsStatus');
+        if (api) {
+          currentExternalTerminalsVersion = api.versions?.[0]?.version || null;
+        }
+      }
+   
+      const resTerminals = currentExternalTerminalsVersion === '1.2'
+        ? await this.axiosInstance.post('/avContent', JSON.stringify(ApiRequestCurrentExternalTerminalsStatusv1_2))
+        : await this.axiosInstance.post('/avContent', JSON.stringify(ApiRequestCurrentExternalTerminalsStatusv1_0));
       const terminals = resTerminals.data as unknown as ApiResponceExternalTerminalStatus;
       this._externalTerminals = terminals.result[0];
       // add other terminals
@@ -579,6 +592,18 @@ export class SonyDevice extends EventEmitter {
 
     const resApiInfo = await axiosInstance.post('/guide', JSON.stringify(ApiRequestSupportedApiInfo));
     const apisInfo = resApiInfo.data.result[0];
+
+    const serviceApiInfo = apisInfo.find(v => v.service === 'system');
+    let systemInformationVersion = null;
+  
+    for (const service of Array.isArray(serviceApiInfo) ? serviceApiInfo : []) {
+      const api = service.apis.find(api => api.name === 'getSystemInformation');
+      if (api) {
+        systemInformationVersion = api.versions?.[0]?.version || null;
+      }
+    }
+ 
+    const ApiRequestSystemInformation = systemInformationVersion === '1.6' ? ApiRequestSystemInformationv1_6 : ApiRequestSystemInformationv1_4;
 
     const device = new SonyDevice(baseUrl, upnpUrl, udn, apisInfo, log);
     
