@@ -14,6 +14,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    // axios' type definitions reference DOM types (ProgressEvent) that are not
+    // part of the node lib set used here
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "noImplicitAny": false
   },
