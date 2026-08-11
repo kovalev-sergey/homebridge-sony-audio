@@ -4,8 +4,7 @@ import { UnsupportedVersionApiError, GenericApiError, IncompatibleDeviceCategory
 import { Client as ssdp } from 'node-ssdp';
 import { Logger } from 'homebridge';
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
-import xmlParcer from 'fast-xml-parser';
-import type { ValidationError } from 'fast-xml-parser';
+import { XMLParser } from 'fast-xml-parser';
 import { URL } from 'url';
 import EventEmitter from 'events';
 
@@ -18,7 +17,14 @@ export const enum DiscoveryEvents {
   NewDeviceFound = 'new-device-found'
 }
 
-type XmlParserError = ValidationError['err'];
+/**
+ * The parser of the UPnP device description.
+ * `serviceList.service` is forced to be an array because a device may expose
+ * a single `service` entry, which otherwise would be parsed as an object.
+ */
+const xmlParcer = new XMLParser({
+  isArray: (tagName, jPath) => jPath === 'root.device.serviceList.service',
+});
 
 /**
  * An instance of this class is periodically try to discover a new or
@@ -118,7 +124,7 @@ export class Discoverer extends EventEmitter {
         try {
           deviceDescription = xmlParcer.parse(response.data);
         } catch (error) {
-          this.log.debug(`ERROR: Can't parse the response from device during discovery. Error: ${(error as XmlParserError).code}, ${(error as XmlParserError).msg}`);
+          this.log.debug(`ERROR: Can't parse the response from device during discovery. Error: ${(error as Error).message}`);
           return;
         }
         // Check for the presence of the `av:X_ScalarWebAPI_DeviceInfo` tag. If not, then this plugin does not support the device. Fix #7
