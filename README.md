@@ -67,6 +67,17 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 ## Installation
 If you are new to homebridge, please first read the homebridge [documentation](https://www.npmjs.com/package/homebridge).
 
+### Requirements
+
+|homebridge-sony-audio|Homebridge|Node.js|
+|---|---|---|
+|2.x|1.8.0 – 2.x|22, 24, 26|
+|1.x|1.3.0 – 1.x|>= 14.21.3|
+
+> **Upgrading to 2.0.0:** no configuration changes are required. Version 2 adds
+> Homebridge 2.x support (HAP-NodeJS 2.x) and drops Node.js versions older than 22,
+> in line with Homebridge 2.x requirements.
+
 ### Install homebridge
 ```sh
 npm install -g homebridge

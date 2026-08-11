@@ -50,7 +50,7 @@ jest.mock('../src/sonyAudioAccessorySettings', () => {
 
 import { CharacteristicSetCallback } from 'homebridge';
 import { EventEmitter } from 'events';
-import { Characteristic, Service } from 'hap-nodejs';
+import { Characteristic, Service } from './helpers/hap';
 import { SonyAudioAccessory } from '../src/sonyAudioAccessory';
 import { SonyAudioAccessorySettings } from '../src/sonyAudioAccessorySettings';
 import { SonyDevice, DEVICE_EVENTS } from '../src/sonyDevice';

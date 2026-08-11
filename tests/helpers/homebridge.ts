@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Service, Characteristic, uuid } from 'hap-nodejs';
-import type { API, PlatformAccessory, WithUUID } from 'homebridge';
+import { Service, Characteristic, uuid } from './hap';
+import type { API, PlatformAccessory, WithUUID, Service as HapService } from 'homebridge';
 
 /**
  * A minimal stand-in for Homebridge's `PlatformAccessory` backed by real
  * hap-nodejs services, so characteristic behaviour is exercised for real.
  */
 export class FakePlatformAccessory {
-  public services: Service[] = [];
+  public services: HapService[] = [];
   public context: any = {};
   public reachable = true;
 
@@ -19,26 +19,26 @@ export class FakePlatformAccessory {
     this.services.push(new Service.AccessoryInformation('', ''));
   }
 
-  getService(target: string | WithUUID<typeof Service>): Service | undefined {
+  getService(target: string | WithUUID<typeof HapService>): HapService | undefined {
     if (typeof target === 'string') {
       return this.services.find(s => s.displayName === target);
     }
     return this.services.find(s => s.UUID === (target as unknown as { UUID: string }).UUID);
   }
 
-  getServiceById(target: WithUUID<typeof Service>, subtype: string): Service | undefined {
+  getServiceById(target: WithUUID<typeof HapService>, subtype: string): HapService | undefined {
     return this.services.find(
       s => s.UUID === (target as unknown as { UUID: string }).UUID && s.subtype === subtype,
     );
   }
 
-  addService(target: any, ...args: unknown[]): Service {
+  addService(target: any, ...args: unknown[]): HapService {
     const service = typeof target === 'function' ? new target(...args) : target;
     this.services.push(service);
     return service;
   }
 
-  removeService(service: Service) {
+  removeService(service: HapService) {
     this.services = this.services.filter(s => s !== service);
   }
 }

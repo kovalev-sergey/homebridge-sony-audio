@@ -11,20 +11,29 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        # the Node.js versions to build on
-        node-version: [14.x, 16.x, 18.x, 20.x, 22.x, 24.x]
+        # the Node.js versions supported by Homebridge 2.x
+        node-version: [22.x, 24.x]
+        # verify the plugin against both supported Homebridge majors:
+        # 1.x ships `hap-nodejs`, 2.x ships `@homebridge/hap-nodejs`
+        homebridge-version: ['1.11.4', '2.3.1']
+
+    name: node ${{ matrix.node-version }} / homebridge ${{ matrix.homebridge-version }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }} 
-        uses: actions/setup-node@v1
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install homebridge ${{ matrix.homebridge-version }}
+        run: npm install --no-save homebridge@${{ matrix.homebridge-version }}
 
       - name: Lint the project
         run: npm run lint
