@@ -713,7 +713,7 @@ export class SonyDevice extends EventEmitter {
           }
 
           this.log.debug(`Device ${this.systemInfo.name} sent subscribe message ${JSON.stringify(this.switchNotifications(2, disabled, enabled))}`);
-          ws['subscriptionCommand'] = JSON.stringify(this.switchNotifications(2, disabled, enabled));
+          ws['subscriptionCommand'] = JSON.stringify(this.switchNotifications(2, disabled.length === 0 ? null : disabled, enabled));
           ws.send(ws['subscriptionCommand']);
 
         } else if (response.id === 100) { // unsubscribe from notifications
@@ -762,7 +762,7 @@ export class SonyDevice extends EventEmitter {
    * @param disable 
    * @param enable 
    */
-  private switchNotifications(id: number, disable: ApiNotification[], enable: ApiNotification[]){
+  private switchNotifications(id: number, disable: ApiNotification[] | null, enable: ApiNotification[]){
     return {
       method: 'switchNotifications',
       id: id,
