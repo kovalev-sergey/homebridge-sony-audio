@@ -10,6 +10,7 @@ import {
 import { SonyDevice, DEVICE_EVENTS } from './sonyDevice';
 import { SonyAudioAccessorySettings } from './sonyAudioAccessorySettings';
 import { ExternalTerminal, TerminalTypeMeta } from './api';
+import { getHomeKitName } from './name';
 
 import { SonyAudioHomebridgePlatform } from './platform';
 
@@ -106,9 +107,15 @@ export class SonyAudioAccessory {
       
       const inputSourceSubtype = this.getInputSubtype(terminal);
       const identifier = index;
-      const serviceInputSource = this.accessory.getService(terminal.uri) ||
-        this.accessory.addService(this.platform.Service.InputSource, terminal.uri, inputSourceSubtype);
-      serviceInputSource.updateCharacteristic(this.platform.Characteristic.ConfiguredName, await this.accessorySettings.getInputName(inputSourceSubtype, terminal.label ? terminal.label : terminal.title));
+      const inputName = getHomeKitName(terminal.uri, `Input ${index + 1}`);
+      const configuredInputName = getHomeKitName(terminal.label ? terminal.label : terminal.title, inputName);
+      const serviceInputSource = this.accessory.getServiceById(this.platform.Service.InputSource, inputSourceSubtype) ||
+        this.accessory.addService(this.platform.Service.InputSource, inputName, inputSourceSubtype);
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.Name, inputName);
+      serviceInputSource.updateCharacteristic(this.platform.Characteristic.ConfiguredName, getHomeKitName(
+        await this.accessorySettings.getInputName(inputSourceSubtype, configuredInputName),
+        configuredInputName,
+      ));
 
       const defaultVisibility = this.platform.Characteristic.CurrentVisibilityState.SHOWN;
       const visibility = await this.accessorySettings.getInputVisibility(inputSourceSubtype, defaultVisibility);
@@ -432,8 +439,9 @@ export class SonyAudioAccessory {
    * @param callback 
    */
   setInputSourceConfiguredName(serviceInputSource: Service, value: CharacteristicValue, callback: CharacteristicSetCallback) {
-    this.platform.log.debug('Set Characteristic InputSource ConfiguredName -> ', value);
-    this.accessorySettings.setInputName(serviceInputSource.subtype!, value as string)
+    const inputName = getHomeKitName(String(value), 'Input');
+    this.platform.log.debug('Set Characteristic InputSource ConfiguredName -> ', inputName);
+    this.accessorySettings.setInputName(serviceInputSource.subtype!, inputName)
       .then(() => callback(null))
       .catch(err => callback(err));
   }
