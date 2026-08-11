@@ -12,6 +12,11 @@ docs
 
 # typescript
 tsconfig.json
+tsconfig.spec.json
+
+# tests
+tests
+jest.config.js
 
 # vscode
 .vscode
