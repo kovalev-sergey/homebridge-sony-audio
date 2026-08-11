@@ -81,6 +81,8 @@ export class SonyAudioAccessory {
     // register callbacks
     this.serviceTvSpeaker.getCharacteristic(this.platform.Characteristic.VolumeSelector)
       .on('set', this.setVolume.bind(this));
+    this.serviceTvSpeaker.getCharacteristic(this.platform.Characteristic.Volume)
+      .on('set', this.setVolumeAbsolute.bind(this));
     this.serviceTvSpeaker.getCharacteristic(this.platform.Characteristic.Mute)
       .on('set', this.setMute.bind(this));
     this.serviceTv.getCharacteristic(this.platform.Characteristic.Active)
@@ -338,6 +340,15 @@ export class SonyAudioAccessory {
     this.device.setVolume(volumeSelector)
       .then(() => this.callbackWrapper(callback))
       .catch(err => this.callbackWrapper(callback, err));
+  }
+
+  setVolumeAbsolute(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+    if (typeof value === 'number') {
+      this.platform.log.debug('Set Characteristic Volume -> ', value);
+      this.device.setVolumeAbsolute(value)
+        .then(() => this.callbackWrapper(callback))
+        .catch(err => this.callbackWrapper(callback, err));
+    }
   }
 
   setMute(value: CharacteristicValue, callback: CharacteristicSetCallback) {
