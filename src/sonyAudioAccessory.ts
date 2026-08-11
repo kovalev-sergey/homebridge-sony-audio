@@ -47,16 +47,16 @@ export class SonyAudioAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, this.device.systemInfo.model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, this.device.systemInfo.serial || this.device.UDN);
       
-    const serviceTvName = this.device.systemInfo.name;
+    const serviceTvName = getHomeKitName(this.device.systemInfo.name);
     this.serviceTv = this.accessory.getService(serviceTvName) ||
       this.accessory.addService(this.platform.Service.Television, serviceTvName);
     this.serviceTv
-      .setCharacteristic(this.platform.Characteristic.ConfiguredName, this.device.systemInfo.name)
+      .setCharacteristic(this.platform.Characteristic.ConfiguredName, serviceTvName)
       .setCharacteristic(this.platform.Characteristic.SleepDiscoveryMode,
         this.platform.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
 
     // TODO: maybe need to test are the device for volume / mute support
-    const serviceTvSpeakerName = this.device.systemInfo.name + ' Speaker';
+    const serviceTvSpeakerName = getHomeKitName(this.device.systemInfo.name + ' Speaker', 'Sony Audio Speaker');
     this.serviceTvSpeaker = this.accessory.getService(serviceTvSpeakerName) ||
       this.accessory.addService(this.platform.Service.TelevisionSpeaker, serviceTvSpeakerName);
     

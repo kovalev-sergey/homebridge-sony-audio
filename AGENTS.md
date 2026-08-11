@@ -27,12 +27,15 @@ npm start         # build + run local homebridge in debug/insecure mode
   TS options in `tsconfig.spec.json`). Shared fakes are in `tests/helpers/`:
   `logger.ts` (mock Homebridge `Logger`), `mockAxios.ts` (route-table axios instance),
   `mockWs.ts` (drivable `ws` replacement), `homebridge.ts` (fake `API` + `PlatformAccessory`
-  backed by real hap-nodejs services) and `fixtures.ts` (Audio Control API payloads).
+  backed by real hap-nodejs services), `hap.ts` (resolves `@homebridge/hap-nodejs` on
+  Homebridge 2.x and falls back to `hap-nodejs` on 1.x — always import HAP through this
+  shim in tests) and `fixtures.ts` (Audio Control API payloads).
 - Network (`axios`, `ws`, `node-ssdp`) is always mocked; `fs-extra` is exercised for real
   against a `os.tmpdir()` directory.
 - `tests/` also contains two manual SSDP helper scripts (`ssdp-client.ts`, `ssdp-server.ts`)
   run ad hoc with `ts-node`; they are not part of the jest run.
-- CI (`.github/workflows/build.yml`) runs `npm run lint`, `npm test` then `npm run build`.
+- CI (`.github/workflows/build.yml`) runs `npm run lint`, `npm test` then `npm run build`
+  on a matrix of Node 22/24 × Homebridge 1.11.x/2.3.x.
 - Always run `npm run lint && npm test && npm run build` before considering a change done.
 
 ## Layout (`src/`)
@@ -57,6 +60,8 @@ The `SonyDevice` instance is stored in `PlatformAccessory<SonyDevice>.context`.
 - ESLint config in `.eslintrc`: single quotes, 2-space indent, trailing commas on multiline,
   `curly` always, `eqeqeq`. **`no-console` is a warning — use the Homebridge `Logger`
   (`this.log` / `this.platform.log`) instead, never `console.*`.**
+- HomeKit-visible names must go through `getHomeKitName()` (`src/name.ts`); HAP-NodeJS 2.x
+  logs warnings for names that do not start/end with an alphanumeric character.
 - Lint runs with `--max-warnings=0`, so warnings are effectively errors.
 - Files with very long import lines / API doc links start with `/* eslint-disable max-len */`.
 - New Audio Control API calls: add the request constant and response interface to `api.ts`
@@ -83,13 +88,13 @@ The `SonyDevice` instance is stored in `PlatformAccessory<SonyDevice>.context`.
 2. Merge to `master`; `Build and Lint` workflow must be green.
 3. Create a GitHub **release** with a tag `vX.Y.Z` (tags in repo: `v1.0.8` … `v1.2.0`).
 4. `.github/workflows/publish.yml` triggers on release creation: it re-runs lint+build on
-   Node 12/14/16, then `npm publish` to npm using the `npm_token` secret.
-   Publishing is gated on repo == `kovalev-sergey/homebridge-sony-audio` and a `v*` tag.
+   Node 22/24 against both Homebridge majors, then `npm publish` to npm using the `npm_token`
+   secret. Publishing is gated on repo == `kovalev-sergey/homebridge-sony-audio` and a `v*` tag.
 5. `prepublishOnly` runs `lint` + `test` + `build` locally as a safety net; `.npmignore` keeps `src/`,
    tests and dev config out of the published tarball (`dist/` is what ships).
 
 ## Notes
 
 - `dist/` is generated — never edit it, never commit it.
-- Node >= 12.13.0, homebridge >= 1.3.0 per `engines`.
+- Node >= 22 (`^22 || ^24 || ^26`), homebridge `^1.8.0 || ^2.0.0` per `engines`.
 - Dependencies are intentionally lean: `axios`, `ws`, `node-ssdp`, `fast-xml-parser`, `fs-extra`.

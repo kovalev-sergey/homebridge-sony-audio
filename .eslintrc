@@ -15,7 +15,7 @@
   "rules": {
     "quotes": ["warn", "single"],
     "indent": ["warn", 2, { "SwitchCase": 1 }],
-    "semi": ["off"],
+    "semi": ["warn"],
     "comma-dangle": ["warn", "always-multiline"],
     "dot-notation": "off",
     "eqeqeq": "warn",
@@ -30,8 +30,8 @@
     "lines-between-class-members": ["warn", "always", {"exceptAfterSingleLine": true}],
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
-    "@typescript-eslint/explicit-module-boundary-types": "off",
-    "@typescript-eslint/semi": ["warn"],
-    "@typescript-eslint/member-delimiter-style": ["warn"]
+    "@typescript-eslint/explicit-module-boundary-types": "off"
+    // NOTE: `@typescript-eslint/semi` and `@typescript-eslint/member-delimiter-style` were
+    // removed in typescript-eslint v6 (moved to @stylistic). The base `semi` rule is used instead.
   }
 }
