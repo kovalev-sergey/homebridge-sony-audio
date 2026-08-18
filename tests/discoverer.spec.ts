@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-jest.mock('axios', () => ({
+jest.mock('../src/http', () => ({
   __esModule: true,
-  default: { create: jest.fn(), get: jest.fn() },
+  ...jest.requireActual('../src/http'),
+  httpGet: jest.fn(),
 }));
 
-jest.mock('node-ssdp', () => {
+jest.mock('../src/ssdp', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { EventEmitter } = require('events');
   class FakeSsdpClient extends EventEmitter {
     static instances: FakeSsdpClient[] = [];
     search = jest.fn();
+    stop = jest.fn();
     constructor(public options: unknown) {
       super();
       FakeSsdpClient.instances.push(this);
@@ -22,9 +24,9 @@ jest.mock('../src/sonyDevice', () => ({
   SonyDevice: { createDevice: jest.fn() },
 }));
 
-import axios from 'axios';
+import { httpGet, HttpError } from '../src/http';
 import { URL } from 'url';
-import { Client as ssdp } from 'node-ssdp';
+import { Client as ssdp } from '../src/ssdp';
 import { Discoverer, DiscoveryEvents } from '../src/discoverer';
 import { SonyDevice } from '../src/sonyDevice';
 import { GenericApiError, IncompatibleDeviceCategoryError, UnsupportedVersionApiError } from '../src/api';
@@ -35,9 +37,9 @@ const LOCATION = 'http://192.168.1.10:64321/dmr.xml';
 const USN = 'uuid:00000000-0000-1010-8000-aabbccddeeff::urn:schemas-sony-com:service:ScalarWebAPI:1';
 const UDN = 'uuid:00000000-0000-1010-8000-aabbccddeeff';
 
-const axiosGet = axios.get as unknown as jest.Mock;
+const httpGetMock = httpGet as unknown as jest.Mock;
 const createDeviceMock = SonyDevice.createDevice as unknown as jest.Mock;
-const FakeSsdpClient = ssdp as unknown as { instances: { search: jest.Mock; emit: (e: string, ...a: unknown[]) => void }[] };
+const FakeSsdpClient = ssdp as unknown as { instances: { search: jest.Mock; stop: jest.Mock; emit: (e: string, ...a: unknown[]) => void }[] };
 
 function descriptionXml(options: {
   withScalarWebApi?: boolean;
@@ -91,10 +93,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(() => {
   log = createMockLogger();
-  (axios.create as unknown as jest.Mock).mockReturnValue({
-    interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
-  });
-  axiosGet.mockResolvedValue({ data: descriptionXml() });
+  httpGetMock.mockResolvedValue({ data: descriptionXml() });
   createDeviceMock.mockImplementation(async () => ({
     systemInfo: { name: '', model: '' },
     manufacturer: 'Sony Corporation',
@@ -140,44 +139,44 @@ describe('Discoverer discovery loop', () => {
 describe('Discoverer.handleSsdpResponse', () => {
   it('ignores non 200 answers', () => {
     discoverer.handleSsdpResponse(ssdpHeaders(), 404);
-    expect(axiosGet).not.toHaveBeenCalled();
+    expect(httpGetMock).not.toHaveBeenCalled();
   });
 
   it('ignores answers without USN or LOCATION', () => {
     discoverer.handleSsdpResponse({ USN } as Record<string, string>, 200);
     discoverer.handleSsdpResponse({ LOCATION } as Record<string, string>, 200);
     discoverer.handleSsdpResponse({} as Record<string, string>, 200);
-    expect(axiosGet).not.toHaveBeenCalled();
+    expect(httpGetMock).not.toHaveBeenCalled();
   });
 
   it('ignores answers for a different search target', () => {
     discoverer.handleSsdpResponse(ssdpHeaders({ ST: 'urn:schemas-upnp-org:device:MediaRenderer:1' }), 200);
-    expect(axiosGet).not.toHaveBeenCalled();
+    expect(httpGetMock).not.toHaveBeenCalled();
   });
 
   it('fetches the device description of a matching answer', () => {
     discoverer.handleSsdpResponse(ssdpHeaders(), 200);
-    expect(axiosGet).toHaveBeenCalledWith(LOCATION);
+    expect(httpGetMock).toHaveBeenCalledWith(LOCATION);
   });
 
   it('does not process the same device twice', async () => {
     discoverer.handleSsdpResponse(ssdpHeaders(), 200);
     await flush();
     discoverer.handleSsdpResponse(ssdpHeaders(), 200);
-    expect(axiosGet).toHaveBeenCalledTimes(1);
+    expect(httpGetMock).toHaveBeenCalledTimes(1);
   });
 
   it('is wired to the ssdp client response event', () => {
     const client = FakeSsdpClient.instances[FakeSsdpClient.instances.length - 1];
     client.emit('response', ssdpHeaders(), 200);
-    expect(axiosGet).toHaveBeenCalledWith(LOCATION);
+    expect(httpGetMock).toHaveBeenCalledWith(LOCATION);
   });
 });
 
 describe('Discoverer.registerDevice', () => {
   it('skips descriptions served from the root path', () => {
     discoverer.registerDevice(USN, new URL('http://192.168.1.10:64321/'));
-    expect(axiosGet).not.toHaveBeenCalled();
+    expect(httpGetMock).not.toHaveBeenCalled();
   });
 
   it('emits NewDeviceFound with a fully populated device', async () => {
@@ -202,7 +201,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('keeps an absolute IRCC control url as is', async () => {
-    axiosGet.mockResolvedValue({ data: descriptionXml({ ircc: 'http://192.168.1.10:52323/upnp/control/IRCC' }) });
+    httpGetMock.mockResolvedValue({ data: descriptionXml({ ircc: 'http://192.168.1.10:52323/upnp/control/IRCC' }) });
 
     discoverer.registerDevice(USN, new URL(LOCATION));
     await flush();
@@ -211,7 +210,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('creates the device without an upnp url when there is no IRCC service', async () => {
-    axiosGet.mockResolvedValue({ data: descriptionXml({ ircc: null }) });
+    httpGetMock.mockResolvedValue({ data: descriptionXml({ ircc: null }) });
 
     discoverer.registerDevice(USN, new URL(LOCATION));
     await flush();
@@ -220,7 +219,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('ignores devices without the ScalarWebAPI device info tag', async () => {
-    axiosGet.mockResolvedValue({ data: descriptionXml({ withScalarWebApi: false }) });
+    httpGetMock.mockResolvedValue({ data: descriptionXml({ withScalarWebApi: false }) });
     const onFound = jest.fn();
     discoverer.on(DiscoveryEvents.NewDeviceFound, onFound);
 
@@ -232,7 +231,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('logs and skips a device without a base url', async () => {
-    axiosGet.mockResolvedValue({ data: descriptionXml({ baseUrl: null }) });
+    httpGetMock.mockResolvedValue({ data: descriptionXml({ baseUrl: null }) });
 
     discoverer.registerDevice(USN, new URL(LOCATION));
     await flush();
@@ -242,7 +241,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('logs and skips a device without a UDN', async () => {
-    axiosGet.mockResolvedValue({ data: descriptionXml({ udn: null }) });
+    httpGetMock.mockResolvedValue({ data: descriptionXml({ udn: null }) });
 
     discoverer.registerDevice(USN, new URL(LOCATION));
     await flush();
@@ -283,7 +282,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('logs a transport error only once per location', async () => {
-    axiosGet.mockRejectedValue(Object.assign(new Error('timeout of 0ms exceeded'), { isAxiosError: true }));
+    httpGetMock.mockRejectedValue(new HttpError('timeout of 5000ms exceeded', 'ECONNABORTED'));
 
     discoverer.registerDevice(USN, new URL(LOCATION));
     await flush();
@@ -295,7 +294,7 @@ describe('Discoverer.registerDevice', () => {
   });
 
   it('retries a device after a transport error', async () => {
-    axiosGet.mockRejectedValueOnce(Object.assign(new Error('timeout'), { isAxiosError: true }));
+    httpGetMock.mockRejectedValueOnce(new HttpError('timeout', 'ECONNABORTED'));
     const onFound = jest.fn();
     discoverer.on(DiscoveryEvents.NewDeviceFound, onFound);
 

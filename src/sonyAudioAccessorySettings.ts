@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import * as fs from 'node:fs/promises';
 import { Logger } from 'homebridge';
 import * as path from 'path';
 
@@ -41,7 +41,7 @@ export class SonyAudioAccessorySettings {
     // HOOBS return not existing path. #10
     // So, create it if it doesn't exist
     try {
-      await fs.ensureDir(storagePath);
+      await fs.mkdir(storagePath, { recursive: true });
     } catch (error) {
       logger.debug(`The path to save the accessory settings doesn't exist and can't be created: ${storagePath}\nError\n${JSON.stringify(error)}`);
       logger.debug('Accessory settings will be reset after bridge restart');
@@ -58,7 +58,7 @@ export class SonyAudioAccessorySettings {
       inputs: this.inputs,
     };
     try {
-      await fs.writeJson(this.filePath, item);
+      await fs.writeFile(this.filePath, JSON.stringify(item));
       this.logger.debug(`Settings has been saved at path ${this.filePath}`);
     } catch (error) {
       this.logger.debug(`An error occurred while saving the settings.\nError\n${JSON.stringify(error)}`);
@@ -67,12 +67,20 @@ export class SonyAudioAccessorySettings {
   }
 
   private async loadSettings(): Promise<void> {
-    if (!await fs.pathExists(this.filePath)) {
-      this.logger.debug(`Settings not found at path ${this.filePath}`);
+    let content: string;
+    try {
+      content = await fs.readFile(this.filePath, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.logger.debug(`Settings not found at path ${this.filePath}`);
+      } else {
+        this.logger.debug(`An error occurred while loading the settings.\nError\n${JSON.stringify(error)}`);
+      }
       return;
     }
     try {
-      const settings = await fs.readJson(this.filePath);
+      // Strip a UTF-8 BOM, which `JSON.parse` does not accept
+      const settings = JSON.parse(content.replace(/^\uFEFF/, ''));
       this.logger.debug(`Settings has been loaded from ${this.filePath}`);
       this.inputs = settings.inputs;
     } catch (error) {

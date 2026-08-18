@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 import { URL } from 'url';
 import { GenericApiError, ApiRequestCurrentExternalTerminalsStatusv1_0, ApiRequestCurrentExternalTerminalsStatusv1_2, ApiRequestSupportedApiInfo, ApiRequestSystemInformationv1_4, ApiRequestSystemInformationv1_6, UnsupportedVersionApiError, ApiResponceSwitchNotifications, ApiNotificationResponce, NotificationMethods, ApiResponceNotifyVolumeInformation, ApiResponceNotifyPowerStatus, ApiResponceNotifyPlayingContentInfo, ApiRequestGetPowerStatus, VolumeInformation, ApiRequestVolumeInformation, ApiResponcePowerStatus, ExternalTerminal, ApiResponceExternalTerminalStatus, ApiResponceVolumeInformation, ApiResponceNotifyExternalTerminalStatus, ApiRequestSetAudioVolume, ApiRequestSetPowerStatus, ApiRequestSetAudioMute, ApiRequestSetPlayContent, ApiRequestPlayingContentInfo, ApiResponcePlayingContentInfo, TerminalTypeMeta, ApiRequestGetSchemeList, ApiResponceSchemeList, ApiRequestPausePlayingContent, ApiRequestGetInterfaceInformation, ApiResponceInterfaceInformation, IncompatibleDeviceCategoryError, ApiNotification } from './api';
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { createHttpClient, HttpClient, HttpResponse } from './http';
 import { Logger } from 'homebridge';
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
@@ -393,8 +393,8 @@ export class SonyDevice extends EventEmitter {
   private _externalTerminals: ExternalTerminal[] | null = null;
   private _volumeInformation: VolumeInformation[] | null = null;
   
-  private axiosInstance: AxiosInstance;
-  private axiosInstanceSoap?: AxiosInstance;
+  private axiosInstance: HttpClient;
+  private axiosInstanceSoap?: HttpClient;
   private wsClients: Map<string, WebSocket>;
 
   public baseUrl: URL;
@@ -412,25 +412,25 @@ export class SonyDevice extends EventEmitter {
     this.log = log;
     // this.systemInfo = systemInfo;
 
-    this.axiosInstance = axios.create({
+    this.axiosInstance = createHttpClient({
       baseURL: this.baseUrl.href,
       headers: { 'content-type': 'application/json' },
       timeout: REQUEST_TIMEOUT,
+      onRequest: SonyDevice.requestInterceptorLogger(this.log),
+      onResponse: SonyDevice.responseInterceptor(this.log),
     });
-    this.axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
-    this.axiosInstance.interceptors.request.use(SonyDevice.requestInterceptorLogger(this.log));
 
     if (this.upnpUrl) {
-      this.axiosInstanceSoap = axios.create({
+      this.axiosInstanceSoap = createHttpClient({
         baseURL: this.upnpUrl.href,
         headers: {
           'SOAPACTION': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"', 
           'Content-Type': 'text/xml; charset="utf-8"',
         },
         timeout: REQUEST_TIMEOUT,
+        onRequest: SonyDevice.requestInterceptorLogger(this.log),
+        onResponse: SonyDevice.responseInterceptor(this.log),
       });
-      this.axiosInstanceSoap.interceptors.response.use(SonyDevice.responseInterceptor(this.log));
-      this.axiosInstanceSoap.interceptors.request.use(SonyDevice.requestInterceptorLogger(this.log));
     }
     this.wsClients = new Map<string, WebSocket>();
     this.readyState = SonyDevice.READY;
@@ -579,7 +579,7 @@ export class SonyDevice extends EventEmitter {
    * @param response
    */
   static responseInterceptor(log: Logger) {
-    return (response: AxiosResponse) => {
+    return (response: HttpResponse) => {
       log.debug(`Response from device:\n${JSON.stringify(response.data)}`);
       if (typeof response.data === 'object' && response.data !== null) {
         if ('error' in response.data) {
@@ -600,7 +600,7 @@ export class SonyDevice extends EventEmitter {
    * @param request
    */
   static requestInterceptorLogger(log: Logger) {
-    return (request: AxiosRequestConfig) => {
+    return (request: { baseURL?: string; data?: string }) => {
       log.debug(`Request to device\n${request.baseURL}:\n${JSON.stringify(request.data)}`);
       return request;
     };
@@ -611,13 +611,13 @@ export class SonyDevice extends EventEmitter {
    * Get info about supported api and system
    */
   public static async createDevice(baseUrl: URL, upnpUrl: URL | undefined, udn: string, log: Logger) {
-    const axiosInstance = axios.create({
+    const axiosInstance = createHttpClient({
       baseURL: baseUrl.href,
       headers: { 'content-type': 'application/json' },
       timeout: 0, // when device is turning on, some time it has long answer time.
+      onRequest: SonyDevice.requestInterceptorLogger(log),
+      onResponse: SonyDevice.responseInterceptor(log),
     });
-    axiosInstance.interceptors.response.use(SonyDevice.responseInterceptor(log));
-    axiosInstance.interceptors.request.use(SonyDevice.requestInterceptorLogger(log));
 
     // Checks the device against a compatible category of the device
     const resInterfaceInfo = await axiosInstance.post('/system', JSON.stringify(ApiRequestGetInterfaceInformation));
