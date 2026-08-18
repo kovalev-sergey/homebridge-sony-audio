@@ -34,6 +34,15 @@ export class SonyAudioAccessory {
 
   private accessorySettings!: SonyAudioAccessorySettings;
 
+  /**
+   * Resolves as soon as the InputSource services have been built (or their creation
+   * has failed and a retry has been scheduled). The platform waits for it before
+   * publishing the accessory, so HomeKit never sees a Television without inputs.
+   */
+  public readonly ready: Promise<void>;
+
+  private inputsTimeout: NodeJS.Timeout | undefined;
+
   constructor(
     private readonly platform: SonyAudioHomebridgePlatform,
     private readonly accessory: PlatformAccessory<SonyDevice>,
@@ -63,10 +72,7 @@ export class SonyAudioAccessory {
     this.serviceTvSpeaker.setCharacteristic(this.platform.Characteristic.VolumeControlType,
       this.platform.Characteristic.VolumeControlType.ABSOLUTE);
     
-    SonyAudioAccessorySettings.GetInstance(accessory.UUID, platform.api.user.persistPath(), this.platform.log)
-      .then(settings => this.accessorySettings = settings)
-      .then(() => this.device.getInputs())
-      .then(terminals => this.buildInputs(terminals));
+    this.ready = this.initInputs();
 
     // subcribe to events from device
     this.device.on(DEVICE_EVENTS.VOLUME, volume => this.onChangeVolume(volume));
@@ -95,6 +101,32 @@ export class SonyAudioAccessory {
 
     this.serviceTv.addLinkedService(this.serviceTvSpeaker);
 
+  }
+
+  /**
+   * Loads the persisted settings and creates the InputSource services.
+   * A device that is asleep or unreachable at this moment must not leave the accessory
+   * without inputs, so the attempt is repeated until it succeeds. See #42.
+   */
+  private async initInputs(): Promise<void> {
+    if (this.inputsTimeout) {
+      clearTimeout(this.inputsTimeout);
+      this.inputsTimeout = undefined;
+    }
+    try {
+      if (!this.accessorySettings) {
+        this.accessorySettings = await SonyAudioAccessorySettings
+          .GetInstance(this.accessory.UUID, this.platform.api.user.persistPath(), this.platform.log);
+      }
+      const terminals = await this.device.getInputs();
+      await this.buildInputs(terminals);
+    } catch (err) {
+      this.platform.log.error(this.getErrorMessage(err as Error));
+      this.inputsTimeout = setTimeout(() => {
+        this.platform.log.debug(`Device ${this.device.systemInfo.name}: trying to build the inputs again...`);
+        this.initInputs();
+      }, RECONNECT_TIMEOUT);
+    }
   }
 
   /**

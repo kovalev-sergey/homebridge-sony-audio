@@ -15,7 +15,9 @@ jest.mock('../src/discoverer', () => {
 });
 
 jest.mock('../src/sonyAudioAccessory', () => ({
-  SonyAudioAccessory: jest.fn(),
+  SonyAudioAccessory: jest.fn(function (this: { ready: Promise<void> }) {
+    this.ready = Promise.resolve();
+  }),
 }));
 
 import { Categories, PlatformConfig } from 'homebridge';
@@ -46,6 +48,9 @@ let api: MockApi;
 let platform: SonyAudioHomebridgePlatform;
 
 const discoverer = () => DiscovererMock.instances[DiscovererMock.instances.length - 1];
+
+/** The accessory is published once its inputs are ready, i.e. after a few microtasks. */
+const flushPublish = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(() => {
   DiscovererMock.instances.length = 0;
@@ -87,9 +92,10 @@ describe('configureAccessory', () => {
 });
 
 describe('publishDevice', () => {
-  it('publishes a brand new accessory as an external accessory', () => {
+  it('publishes a brand new accessory as an external accessory', async () => {
     const device = fakeDevice();
     platform.publishDevice(device);
+    await flushPublish();
 
     expect(api.publishExternalAccessories).toHaveBeenCalledTimes(1);
     const [pluginName, accessories] = api.publishExternalAccessories.mock.calls[0];
@@ -134,38 +140,61 @@ describe('publishDevice', () => {
     expect(AccessoryMock).not.toHaveBeenCalled();
   });
 
-  it('salts the uuid with HOMEBRIDGE_SONY_AUDIO_DEV', () => {
+  it('salts the uuid with HOMEBRIDGE_SONY_AUDIO_DEV', async () => {
     process.env.HOMEBRIDGE_SONY_AUDIO_DEV = 'dev1';
     const device = fakeDevice();
 
     platform.publishDevice(device);
+    await flushPublish();
 
     const [, accessories] = api.publishExternalAccessories.mock.calls[0];
     expect(accessories[0].UUID).toBe(api.hap.uuid.generate(device.UDN + 'dev1'));
     expect(accessories[0].UUID).not.toBe(api.hap.uuid.generate(device.UDN));
   });
 
-  it('gives different devices different accessories', () => {
+  it('gives different devices different accessories', async () => {
     platform.publishDevice(fakeDevice('uuid:a', 'Bedroom'));
     platform.publishDevice(fakeDevice('uuid:b', 'Kitchen'));
+    await flushPublish();
 
     expect(api.publishExternalAccessories).toHaveBeenCalledTimes(2);
     expect(platform.devices).toHaveLength(2);
+  });
+
+  // The InputSource services are created asynchronously (persisted settings + a device
+  // query), so the accessory must not be published before they exist - otherwise HomeKit
+  // sees a Television without inputs. See #42.
+  it('publishes the accessory only after its inputs have been built (#42)', async () => {
+    let buildInputs!: () => void;
+    AccessoryMock.mockImplementationOnce(function (this: { ready: Promise<void> }) {
+      this.ready = new Promise<void>(resolve => buildInputs = resolve);
+    });
+
+    platform.publishDevice(fakeDevice());
+    await Promise.resolve();
+    expect(api.publishExternalAccessories).not.toHaveBeenCalled();
+
+    buildInputs();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(api.publishExternalAccessories).toHaveBeenCalledTimes(1);
   });
 
   // Television accessories are published as *external* accessories, which homebridge
   // does not cache: `configureAccessory` is never called for them, so "Adding new
   // accessory" is logged on every start. That is expected - the accessory keeps its
   // pairing because the uuid is derived from the (stable) device UDN. See #33.
-  it('re-adds the accessory with the same uuid on every restart (#33)', () => {
+  it('re-adds the accessory with the same uuid on every restart (#33)', async () => {
     const device = fakeDevice();
     platform.publishDevice(device);
+    await flushPublish();
     const firstUuid = api.publishExternalAccessories.mock.calls[0][1][0].UUID;
 
     // a restart: a brand new platform, homebridge restores nothing for external accessories
     api = createMockApi();
     const restarted = new SonyAudioHomebridgePlatform(log, config, api);
     restarted.publishDevice(fakeDevice());
+    await flushPublish();
 
     expect(restarted.accessories).toHaveLength(0);
     expect(api.publishExternalAccessories.mock.calls[0][1][0].UUID).toBe(firstUuid);
@@ -174,11 +203,12 @@ describe('publishDevice', () => {
 });
 
 describe('discoverDevices', () => {
-  it('publishes every device the discoverer finds', () => {
+  it('publishes every device the discoverer finds', async () => {
     api.emit('didFinishLaunching');
     const device = fakeDevice();
 
     discoverer().emit('new-device-found', device);
+    await flushPublish();
 
     expect(api.publishExternalAccessories).toHaveBeenCalledTimes(1);
     expect(platform.devices).toEqual([device]);
