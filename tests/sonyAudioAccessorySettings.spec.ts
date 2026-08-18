@@ -80,6 +80,14 @@ describe('SonyAudioAccessorySettings', () => {
       expect(await settings.getInputName('tv', 'TV')).toBe('Television');
     });
 
+    it('keeps a custom name that was stored without a visibility state (#42)', async () => {
+      await fs.writeJson(persistFile(), { inputs: [{ id: 'tv', name: 'Television' }] });
+      const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
+
+      expect(await settings.getInputName('tv', 'TV')).toBe('Television');
+      expect((await fs.readJson(persistFile())).inputs).toEqual([{ id: 'tv', name: 'Television' }]);
+    });
+
     it('does not rewrite the file when the name is unchanged', async () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       await settings.setInputName('tv', 'TV');

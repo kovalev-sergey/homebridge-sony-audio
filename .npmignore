@@ -2,6 +2,14 @@
 src
 docs
 
+# AI agent instructions
+AGENTS.md
+CLAUDE.md
+.pi
+.claude
+.cursor
+.github/copilot-instructions.md
+
 # ------------- Defaults ------------- #
 
 # gitHub actions

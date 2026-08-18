@@ -152,6 +152,25 @@ describe('publishDevice', () => {
     expect(api.publishExternalAccessories).toHaveBeenCalledTimes(2);
     expect(platform.devices).toHaveLength(2);
   });
+
+  // Television accessories are published as *external* accessories, which homebridge
+  // does not cache: `configureAccessory` is never called for them, so "Adding new
+  // accessory" is logged on every start. That is expected - the accessory keeps its
+  // pairing because the uuid is derived from the (stable) device UDN. See #33.
+  it('re-adds the accessory with the same uuid on every restart (#33)', () => {
+    const device = fakeDevice();
+    platform.publishDevice(device);
+    const firstUuid = api.publishExternalAccessories.mock.calls[0][1][0].UUID;
+
+    // a restart: a brand new platform, homebridge restores nothing for external accessories
+    api = createMockApi();
+    const restarted = new SonyAudioHomebridgePlatform(log, config, api);
+    restarted.publishDevice(fakeDevice());
+
+    expect(restarted.accessories).toHaveLength(0);
+    expect(api.publishExternalAccessories.mock.calls[0][1][0].UUID).toBe(firstUuid);
+    expect(log.info).toHaveBeenCalledWith('Adding new accessory:', 'HT-Z9F');
+  });
 });
 
 describe('discoverDevices', () => {

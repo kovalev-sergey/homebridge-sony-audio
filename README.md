@@ -50,6 +50,7 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 |HT-ZF9|3.1 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology|<a href="https://www.sony.co.uk/electronics/sound-bars/ht-zf9">Product overview</a>|
 |HT-Z9F|3.1 channel Dolby Atmos/DTS:X soundbar with Wi-Fi/Bluetooth technology|<a href="https://www.sony.com/electronics/sound-bars/ht-z9f">Product overview</a>|
 |HT-CT800|2.1 channel soundbar with Wi-Fi/Bluetooth technology||
+|HT-790 / HT-S40R\*|Home cinema system with Bluetooth/Wi-Fi technology||
   
 
 ### **Receivers**
@@ -63,6 +64,10 @@ The following Sony audio products are accessible via the Homebridge Sony Audio P
 |DeviceSRS-RA5000|Premium Wireless Speaker with Ambient Room-filling Sound|<a href="https://www.sony.co.uk/electronics/wireless-speakers/srs-ra5000" target="_blank">Product information</a>|
 |SRS-RA3000|Premium Wireless Speaker with Ambient Room-filling Sound|<a href="https://www.sony.co.uk/electronics/wireless-speakers/srs-ra3000" target="_blank">Product information</a>|
 |SRS-ZR5|Portable Wireless Bluetooth/Wi-Fi speaker"|
+
+\* Reported as working by users, not verified by the maintainers.
+Any device that answers the Sony Audio Control API and reports the
+`homeTheaterSystem` or `personalAudio` product category should work.
 
 ## Installation
 If you are new to homebridge, please first read the homebridge [documentation](https://www.npmjs.com/package/homebridge).
@@ -112,4 +117,34 @@ Finded devices will be publishing externally, so you need paired it seperately:
 2. Click "I Don't Have a code or Cannot Scan"
 3. On the next screen you find the discovered devices
 4. Tap one and enter the pin code from your homebridge instance.
+
+## Troubleshooting
+
+### "Adding new accessory" is logged on every Homebridge restart
+This is expected. The accessory is a Television accessory, which HomeKit requires to be
+published as an *external* accessory. Homebridge does not cache external accessories, so
+the plugin re-creates and re-publishes it at every start. The accessory keeps its pairing
+and its HomeKit settings, because its UUID is derived from the (stable) UDN of the device.
+
+### The device disappeared from the Home app / I deleted it and cannot add it back
+External accessories are paired separately from the Homebridge bridge, so after removing
+the accessory in the Home app you have to add it again with the
+[Setting up](#setting-up) steps above ("Add Accessory" → "I Don't Have a Code or Cannot
+Scan" → pick the device → enter the PIN of your Homebridge instance). The accessory only
+shows up there while Homebridge is running and the device has been discovered - check the
+log for `Compatible device found, added: <name>` first. If the Home app still refuses to
+add it, remove the accessory in the Home app once more and restart Homebridge.
+
+### `Incompatible device found, skipped: <name>`
+The device answered the discovery, but the plugin could not initialize it. Enable the
+Homebridge debug log (`homebridge -D`) and restart: the debug output contains the reason
+(unsupported product category, unsupported API version or an API error) plus the raw
+requests and answers of the device. Please attach that debug output when reporting a
+new device.
+
+### The device is not discovered at all
+Discovery relies on SSDP multicast, which does not cross subnets or VLANs. Homebridge and
+the Sony device have to be in the same broadcast domain, and the Homebridge host must not
+block UDP port 1900. Adding the device manually by IP address is not supported: the plugin
+needs the UPnP device description that is only served through the discovery answer.
 

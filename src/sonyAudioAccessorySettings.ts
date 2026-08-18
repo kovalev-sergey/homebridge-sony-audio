@@ -86,7 +86,7 @@ export class SonyAudioAccessorySettings {
 
   async getInputName(id: string, defaultName: string) {
     let input = this.getInput(id);
-    if (input === undefined || input.visibilityState === undefined) {
+    if (input === undefined || input.name === undefined) {
       input = await this.setInputName(id, defaultName);
     } 
     return input.name!;
