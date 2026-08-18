@@ -267,13 +267,41 @@ describe('buildInputs', () => {
       .toBe(Characteristic.TargetVisibilityState.HIDDEN);
   });
 
-  it('marks readonly terminals as not configured', async () => {
-    device.isReadonlyTerminal = jest.fn((terminal: ExternalTerminal) => terminal.uri === 'extInput:tv') as any;
+  it('marks readonly terminals as not configured', async () => {    device.isReadonlyTerminal = jest.fn((terminal: ExternalTerminal) => terminal.uri === 'extInput:tv') as any;
     await buildReady();
     const [tv, hdmi] = inputServices();
 
     expect(tv.getCharacteristic(Characteristic.IsConfigured).value).toBe(Characteristic.IsConfigured.NOT_CONFIGURED);
     expect(hdmi.getCharacteristic(Characteristic.IsConfigured).value).toBe(Characteristic.IsConfigured.CONFIGURED);
+  });
+
+  // A device that is asleep/unreachable while the accessory is being built used to leave
+  // the accessory without any InputSource service - HomeKit then shows the power button
+  // only, until the next Homebridge restart. See #42.
+  it('retries building the inputs when the device does not answer (#42)', async () => {
+    device.getInputs = jest.fn()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      .mockResolvedValue(TERMINALS) as any;
+
+    const sonyAccessory = await buildReady();
+    expect(sonyAccessory).toBeDefined();
+    expect(inputServices()).toHaveLength(0);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('connect ECONNREFUSED'));
+
+    jest.advanceTimersByTime(5000);
+    await flush();
+    await flush();
+
+    expect(inputServices()).toHaveLength(TERMINALS.length);
+  });
+
+  it('resolves the ready promise even when the inputs cannot be built (#42)', async () => {
+    device.getInputs = jest.fn(async () => {
+      throw new Error('connect ECONNREFUSED');
+    }) as any;
+
+    const sonyAccessory = build();
+    await expect(sonyAccessory.ready).resolves.toBeUndefined();
   });
 
   const inputSourceTypes: [TerminalTypeMeta, number][] = [

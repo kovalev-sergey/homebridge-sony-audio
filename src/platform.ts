@@ -104,10 +104,13 @@ export class SonyAudioHomebridgePlatform implements DynamicPlatformPlugin {
       // store a copy of the device object in the `accessory.context`
       accessory.context = device;
       // create the accessory handler for the newly create accessory
-      new SonyAudioAccessory(this, accessory);
+      const sonyAudioAccessory = new SonyAudioAccessory(this, accessory);
 
-      // publish external accessories (the accessory has a television service)
-      this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
+      // publish external accessories (the accessory has a television service),
+      // but only once the input sources have been created, otherwise HomeKit shows
+      // a television without any input
+      Promise.resolve(sonyAudioAccessory.ready)
+        .then(() => this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]));
     }
 
     // save Sony Device for the next correct shutdown
