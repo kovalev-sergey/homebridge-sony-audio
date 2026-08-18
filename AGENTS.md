@@ -87,9 +87,12 @@ The `SonyDevice` instance is stored in `PlatformAccessory<SonyDevice>.context`.
 1. Bump `version` in `package.json` (+ lock file) and commit as `chore: version bump`.
 2. Merge to `master`; `Build and Lint` workflow must be green.
 3. Create a GitHub **release** with a tag `vX.Y.Z` (tags in repo: `v1.0.8` … `v1.2.0`).
-4. `.github/workflows/publish.yml` triggers on release creation: it re-runs lint+build on
-   Node 22/24 against both Homebridge majors, then `npm publish` to npm using the `npm_token`
-   secret. Publishing is gated on repo == `kovalev-sergey/homebridge-sony-audio` and a `v*` tag.
+4. `.github/workflows/publish.yml` triggers on release creation (or `workflow_dispatch`):
+   it re-runs lint+build on Node 22/24 against both Homebridge majors, then `npm publish`
+   to npm. Authentication uses **npm trusted publishing (OIDC)** — the job requests
+   `id-token: write` and needs npm >= 11.5.1, there is no `NPM_TOKEN` secret, and npm
+   attaches build provenance automatically. Publishing is gated on
+   repo == `kovalev-sergey/homebridge-sony-audio` and a `v*` tag.
 5. `prepublishOnly` runs `lint` + `test` + `build` locally as a safety net; `.npmignore` keeps `src/`,
    tests and dev config out of the published tarball (`dist/` is what ships).
 
