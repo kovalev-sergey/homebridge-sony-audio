@@ -1,17 +1,23 @@
-// `fs-extra` exports non-configurable properties, so it cannot be spied on
+// `node:fs/promises` exports non-configurable properties, so it cannot be spied on
 // directly. Wrap the real implementation in a jest mock instead.
-jest.mock('fs-extra', () => {
-  const actual = jest.requireActual('fs-extra');
-  return { ...actual, writeJson: jest.fn(actual.writeJson) };
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual('node:fs/promises');
+  return { ...actual, writeFile: jest.fn(actual.writeFile) };
 });
 
-import * as fs from 'fs-extra';
+import * as fs from 'node:fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { SonyAudioAccessorySettings } from '../src/sonyAudioAccessorySettings';
 import { createMockLogger, MockLogger } from './helpers/logger';
 
 const UUID = '0f5c1a2b-3d4e-5f60-7182-93a4b5c6d7e8';
+
+/** `fs-extra`-like helpers, so the assertions below stay readable. */
+const writeJson = (file: string, data: unknown) => fs.writeFile(file, JSON.stringify(data));
+const readJson = async (file: string) => JSON.parse(await fs.readFile(file, 'utf8'));
+const pathExists = (file: string) => fs.access(file).then(() => true, () => false);
+const writeFileMock = fs.writeFile as unknown as jest.Mock;
 
 describe('SonyAudioAccessorySettings', () => {
   let storagePath: string;
@@ -23,7 +29,7 @@ describe('SonyAudioAccessorySettings', () => {
   });
 
   afterEach(async () => {
-    await fs.remove(storagePath);
+    await fs.rm(storagePath, { recursive: true, force: true });
   });
 
   const persistFile = () =>
@@ -33,7 +39,7 @@ describe('SonyAudioAccessorySettings', () => {
     it('creates the storage directory when it does not exist', async () => {
       const missing = path.join(storagePath, 'nested', 'deep');
       await SonyAudioAccessorySettings.GetInstance(UUID, missing, log);
-      expect(await fs.pathExists(missing)).toBe(true);
+      expect(await pathExists(missing)).toBe(true);
     });
 
     it('does not fail when there is no persisted file yet', async () => {
@@ -43,7 +49,7 @@ describe('SonyAudioAccessorySettings', () => {
     });
 
     it('loads previously persisted inputs', async () => {
-      await fs.writeJson(persistFile(), { inputs: [{ id: 'input-1', name: 'Chromecast', visibilityState: 1 }] });
+      await writeJson(persistFile(), { inputs: [{ id: 'input-1', name: 'Chromecast', visibilityState: 1 }] });
 
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       expect(await settings.getInputName('input-1', 'fallback')).toBe('Chromecast');
@@ -60,7 +66,7 @@ describe('SonyAudioAccessorySettings', () => {
     it('derives the persist key from the uuid without dashes, uppercased', async () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       await settings.setInputName('input-1', 'TV');
-      expect(await fs.pathExists(persistFile())).toBe(true);
+      expect(await pathExists(persistFile())).toBe(true);
     });
   });
 
@@ -69,7 +75,7 @@ describe('SonyAudioAccessorySettings', () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       expect(await settings.getInputName('tv', 'TV')).toBe('TV');
 
-      const stored = await fs.readJson(persistFile());
+      const stored = await readJson(persistFile());
       expect(stored.inputs).toEqual([{ id: 'tv', name: 'TV' }]);
     });
 
@@ -81,19 +87,19 @@ describe('SonyAudioAccessorySettings', () => {
     });
 
     it('keeps a custom name that was stored without a visibility state (#42)', async () => {
-      await fs.writeJson(persistFile(), { inputs: [{ id: 'tv', name: 'Television' }] });
+      await writeJson(persistFile(), { inputs: [{ id: 'tv', name: 'Television' }] });
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
 
       expect(await settings.getInputName('tv', 'TV')).toBe('Television');
-      expect((await fs.readJson(persistFile())).inputs).toEqual([{ id: 'tv', name: 'Television' }]);
+      expect((await readJson(persistFile())).inputs).toEqual([{ id: 'tv', name: 'Television' }]);
     });
 
     it('does not rewrite the file when the name is unchanged', async () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       await settings.setInputName('tv', 'TV');
-      (fs.writeJson as unknown as jest.Mock).mockClear();
+      writeFileMock.mockClear();
       await settings.setInputName('tv', 'TV');
-      expect(fs.writeJson).not.toHaveBeenCalled();
+      expect(writeFileMock).not.toHaveBeenCalled();
     });
 
     it('updates an existing input in place', async () => {
@@ -101,7 +107,7 @@ describe('SonyAudioAccessorySettings', () => {
       await settings.setInputName('tv', 'TV');
       await settings.setInputName('tv', 'Telly');
 
-      const stored = await fs.readJson(persistFile());
+      const stored = await readJson(persistFile());
       expect(stored.inputs).toHaveLength(1);
       expect(stored.inputs[0]).toMatchObject({ id: 'tv', name: 'Telly' });
     });
@@ -112,7 +118,7 @@ describe('SonyAudioAccessorySettings', () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       expect(await settings.getInputVisibility('hdmi1', 0)).toBe(0);
 
-      const stored = await fs.readJson(persistFile());
+      const stored = await readJson(persistFile());
       expect(stored.inputs).toEqual([{ id: 'hdmi1', visibilityState: 0 }]);
     });
 
@@ -125,9 +131,9 @@ describe('SonyAudioAccessorySettings', () => {
     it('does not rewrite the file when the visibility is unchanged', async () => {
       const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
       await settings.setInputVisibility('hdmi1', 1);
-      (fs.writeJson as unknown as jest.Mock).mockClear();
+      writeFileMock.mockClear();
       await settings.setInputVisibility('hdmi1', 1);
-      expect(fs.writeJson).not.toHaveBeenCalled();
+      expect(writeFileMock).not.toHaveBeenCalled();
     });
 
     it('keeps names and visibility of the same input together', async () => {
@@ -135,7 +141,7 @@ describe('SonyAudioAccessorySettings', () => {
       await settings.setInputName('hdmi1', 'BD player');
       await settings.setInputVisibility('hdmi1', 1);
 
-      const stored = await fs.readJson(persistFile());
+      const stored = await readJson(persistFile());
       expect(stored.inputs).toEqual([{ id: 'hdmi1', name: 'BD player', visibilityState: 1 }]);
     });
 
@@ -144,7 +150,7 @@ describe('SonyAudioAccessorySettings', () => {
       await settings.setInputName('a', 'A');
       await settings.setInputName('b', 'B');
 
-      const stored = await fs.readJson(persistFile());
+      const stored = await readJson(persistFile());
       expect(stored.inputs.map((i: { id: string }) => i.id)).toEqual(['a', 'b']);
     });
   });
@@ -161,7 +167,7 @@ describe('SonyAudioAccessorySettings', () => {
 
   it('logs but does not throw when saving fails', async () => {
     const settings = await SonyAudioAccessorySettings.GetInstance(UUID, storagePath, log);
-    (fs.writeJson as unknown as jest.Mock).mockRejectedValueOnce(new Error('EACCES'));
+    writeFileMock.mockRejectedValueOnce(new Error('EACCES'));
 
     await expect(settings.setInputName('tv', 'TV')).resolves.toMatchObject({ id: 'tv', name: 'TV' });
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('An error occurred while saving the settings'));

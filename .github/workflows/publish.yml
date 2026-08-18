@@ -66,4 +66,17 @@ jobs:
       - name: Upgrade npm # trusted publishing requires npm >= 11.5.1
         run: npm install -g npm@latest
       - run: npm ci
-      - run: npm publish # authenticated through OIDC, no NODE_AUTH_TOKEN
+      - name: Resolve the npm dist-tag
+        id: disttag
+        # A prerelease version (2.1.0-beta.1) must never land on the `latest` dist-tag,
+        # otherwise every user would be upgraded to it.
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            TAG=beta
+          else
+            TAG=latest
+          fi
+          echo "Publishing $VERSION with dist-tag $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - run: npm publish --tag ${{ steps.disttag.outputs.tag }} # authenticated through OIDC, no NODE_AUTH_TOKEN

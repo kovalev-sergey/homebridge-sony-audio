@@ -92,6 +92,18 @@ npm install -g homebridge
 npm install -g homebridge-sony-audio
 ```
 
+### Beta releases
+
+Beta versions are published under the `beta` dist-tag and are **not** installed by default:
+```sh
+npm install -g homebridge-sony-audio@beta
+```
+They contain changes that could not be verified against real hardware, so feedback —
+either a bug report or a simple "works for me" on the corresponding
+[release](https://github.com/kovalev-sergey/homebridge-sony-audio/releases) or
+[issue](https://github.com/kovalev-sergey/homebridge-sony-audio/issues) — is very welcome.
+To go back to the stable release: `npm install -g homebridge-sony-audio@latest`.
+
 ## Configuration
 
 No special configuration is required.\

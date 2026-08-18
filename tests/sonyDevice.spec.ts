@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-jest.mock('axios', () => ({
+jest.mock('../src/http', () => ({
   __esModule: true,
-  default: { create: jest.fn() },
+  ...jest.requireActual('../src/http'),
+  createHttpClient: jest.fn(),
 }));
 
 jest.mock('ws', () => {
@@ -10,11 +11,11 @@ jest.mock('ws', () => {
   return { __esModule: true, default: FakeWebSocket };
 });
 
-import axios from 'axios';
+import { createHttpClient } from '../src/http';
 import { URL } from 'url';
 import { SonyDevice, DEVICE_EVENTS } from '../src/sonyDevice';
 import { GenericApiError, IncompatibleDeviceCategoryError, UnsupportedVersionApiError } from '../src/api';
-import { createMockAxiosInstance, MockAxiosInstance } from './helpers/mockAxios';
+import { createMockHttpClient, MockHttpClient } from './helpers/mockHttp';
 import { FakeWebSocket } from './helpers/mockWs';
 import { createMockLogger, MockLogger } from './helpers/logger';
 import { defaultRoutes, apisInfo, externalTerminals } from './helpers/fixtures';
@@ -23,26 +24,26 @@ const BASE_URL = new URL('http://192.168.1.10:10000/sony');
 const UPNP_URL = new URL('http://192.168.1.10:52323/upnp/control/IRCC');
 const UDN = 'uuid:00000000-0000-1010-8000-aabbccddeeff';
 
-const createMock = axios.create as unknown as jest.Mock;
+const createMock = createHttpClient as unknown as jest.Mock;
 
 let log: MockLogger;
 let routes: Record<string, any>;
-let instances: MockAxiosInstance[];
+let instances: MockHttpClient[];
 
 /**
- * axios.create() is called in this order:
- *  0 - bootstrap instance used by `createDevice`
- *  1 - the Audio Control API instance of the device
- *  2 - the SOAP/IRCC instance (only when an upnp url is known)
+ * createHttpClient() is called in this order:
+ *  0 - bootstrap client used by `createDevice`
+ *  1 - the Audio Control API client of the device
+ *  2 - the SOAP/IRCC client (only when an upnp url is known)
  */
-const bootstrapAxios = () => instances[0];
-const apiAxios = () => instances[1];
-const soapAxios = () => instances[2];
+const bootstrapClient = () => instances[0];
+const apiClient = () => instances[1];
+const soapClient = () => instances[2];
 
-function setupAxios() {
+function setupHttp() {
   instances = [];
-  createMock.mockImplementation(() => {
-    const instance = createMockAxiosInstance(routes);
+  createMock.mockImplementation((options) => {
+    const instance = createMockHttpClient(routes, options);
     instances.push(instance);
     return instance;
   });
@@ -64,7 +65,7 @@ beforeEach(() => {
   log = createMockLogger();
   routes = defaultRoutes();
   FakeWebSocket.reset();
-  setupAxios();
+  setupHttp();
 });
 
 afterEach(() => {
@@ -92,7 +93,7 @@ describe('SonyDevice.createDevice', () => {
   it('queries interface info, supported api info and system info in order', async () => {
     await createDevice();
 
-    expect(bootstrapAxios().calls.map(c => [c.url, c.body.method])).toEqual([
+    expect(bootstrapClient().calls.map(c => [c.url, c.body.method])).toEqual([
       ['/system', 'getInterfaceInformation'],
       ['/guide', 'getSupportedApiInfo'],
       ['/system', 'getSystemInformation'],
@@ -130,7 +131,7 @@ describe('SonyDevice.createDevice', () => {
 
     await createDevice();
 
-    expect(bootstrapAxios().lastCall('getSystemInformation').version).toBe('1.6');
+    expect(bootstrapClient().lastCall('getSystemInformation').version).toBe('1.6');
   });
 
   it('accepts a device that only advertises a getSystemInformation version unknown to the plugin', async () => {
@@ -139,7 +140,7 @@ describe('SonyDevice.createDevice', () => {
     routes.getSupportedApiInfo = { result: [patched] };
 
     await expect(createDevice()).resolves.toBeInstanceOf(SonyDevice);
-    expect(bootstrapAxios().lastCall('getSystemInformation').version).toBe('1.5');
+    expect(bootstrapClient().lastCall('getSystemInformation').version).toBe('1.5');
   });
 
   it('uses the v1.6 request when the device advertises getSystemInformation 1.6', async () => {
@@ -149,7 +150,7 @@ describe('SonyDevice.createDevice', () => {
 
     await createDevice();
 
-    expect(bootstrapAxios().lastCall('getSystemInformation').version).toBe('1.6');
+    expect(bootstrapClient().lastCall('getSystemInformation').version).toBe('1.6');
   });
 
   it('does not create a SOAP axios instance when there is no upnp url', async () => {
@@ -237,9 +238,9 @@ describe('SonyDevice terminals', () => {
   it('caches the terminals and does not re-query the device', async () => {
     const device = await createDevice();
     await device.getExternalTerminals();
-    const callsAfterFirst = apiAxios().calls.length;
+    const callsAfterFirst = apiClient().calls.length;
     await device.getExternalTerminals();
-    expect(apiAxios().calls.length).toBe(callsAfterFirst);
+    expect(apiClient().calls.length).toBe(callsAfterFirst);
   });
 
   it('uses the v1.2 request when the device advertises it', async () => {
@@ -250,7 +251,7 @@ describe('SonyDevice terminals', () => {
     const device = await createDevice();
     await device.getExternalTerminals();
 
-    expect(apiAxios().lastCall('getCurrentExternalTerminalsStatus').version).toBe('1.2');
+    expect(apiClient().lastCall('getCurrentExternalTerminalsStatus').version).toBe('1.2');
   });
 
   it('uses the v1.2 request when the device advertises both 1.0 and 1.2 (#40)', async () => {
@@ -266,7 +267,7 @@ describe('SonyDevice terminals', () => {
     const device = await createDevice();
     await device.getExternalTerminals();
 
-    expect(apiAxios().lastCall('getCurrentExternalTerminalsStatus').version).toBe('1.2');
+    expect(apiClient().lastCall('getCurrentExternalTerminalsStatus').version).toBe('1.2');
   });
 
   it('getInputs returns everything that is not an output', async () => {
@@ -323,7 +324,7 @@ describe('SonyDevice terminals', () => {
 
     const input = await device.getActiveInput();
     expect(input?.uri).toBe('extInput:tv');
-    expect(apiAxios().lastCall('getPlayingContentInfo').params[0].output).toBe('extOutput:zone?zone=1');
+    expect(apiClient().lastCall('getPlayingContentInfo').params[0].output).toBe('extOutput:zone?zone=1');
   });
 
   it('getActiveInput returns null when the device reports several zones', async () => {
@@ -360,10 +361,10 @@ describe('SonyDevice state getters', () => {
   it('getVolumeInformation caches its result', async () => {
     const device = await createDevice();
     const first = await device.getVolumeInformation();
-    const before = apiAxios().calls.length;
+    const before = apiClient().calls.length;
     const second = await device.getVolumeInformation();
     expect(second).toBe(first);
-    expect(apiAxios().calls.length).toBe(before);
+    expect(apiClient().calls.length).toBe(before);
   });
 });
 
@@ -372,26 +373,26 @@ describe('SonyDevice setters', () => {
     const device = await createDevice();
 
     await expect(device.setVolume(0)).resolves.toBe(0);
-    expect(apiAxios().lastCall('setAudioVolume').params[0]).toEqual({
+    expect(apiClient().lastCall('setAudioVolume').params[0]).toEqual({
       output: 'extOutput:zone?zone=1',
       volume: '+1',
     });
 
     await device.setVolume(1);
-    expect(apiAxios().lastCall('setAudioVolume').params[0].volume).toBe('-1');
+    expect(apiClient().lastCall('setAudioVolume').params[0].volume).toBe('-1');
   });
 
   it('setVolumeAbsolute sends the value as a string', async () => {
     const device = await createDevice();
     await expect(device.setVolumeAbsolute(33)).resolves.toBe(33);
-    expect(apiAxios().lastCall('setAudioVolume').params[0].volume).toBe('33');
+    expect(apiClient().lastCall('setAudioVolume').params[0].volume).toBe('33');
   });
 
   it('setVolume falls back to an empty output without an active zone', async () => {
     routes.getCurrentExternalTerminalsStatus = { result: [[externalTerminals[0]]] };
     const device = await createDevice();
     await device.setVolume(0);
-    expect(apiAxios().lastCall('setAudioVolume').params[0].output).toBe('');
+    expect(apiClient().lastCall('setAudioVolume').params[0].output).toBe('');
   });
 
   it.each([
@@ -400,7 +401,7 @@ describe('SonyDevice setters', () => {
   ])('setPower(%s) sends %s', async (power, status) => {
     const device = await createDevice();
     await expect(device.setPower(power)).resolves.toBe(power);
-    expect(apiAxios().lastCall('setPowerStatus').params[0].status).toBe(status);
+    expect(apiClient().lastCall('setPowerStatus').params[0].status).toBe(status);
   });
 
   it.each([
@@ -409,7 +410,7 @@ describe('SonyDevice setters', () => {
   ])('setMute(%s) sends %s for the active zone', async (mute, expected) => {
     const device = await createDevice();
     await expect(device.setMute(mute)).resolves.toBe(mute);
-    expect(apiAxios().lastCall('setAudioMute').params[0]).toEqual({
+    expect(apiClient().lastCall('setAudioMute').params[0]).toEqual({
       mute: expected,
       output: 'extOutput:zone?zone=1',
     });
@@ -419,7 +420,7 @@ describe('SonyDevice setters', () => {
     routes.getCurrentExternalTerminalsStatus = { result: [[externalTerminals[0]]] };
     const device = await createDevice();
     await device.setMute(true);
-    expect(apiAxios().lastCall('setAudioMute').params[0]).toEqual({ mute: 'on' });
+    expect(apiClient().lastCall('setAudioMute').params[0]).toEqual({ mute: 'on' });
   });
 
   it('setSource plays the terminal uri on the active zone', async () => {
@@ -428,7 +429,7 @@ describe('SonyDevice setters', () => {
     const hdmi = terminals.find(t => t.uri === 'extInput:hdmi?port=1')!;
 
     await expect(device.setSource(hdmi)).resolves.toBe(hdmi);
-    expect(apiAxios().lastCall('setPlayContent').params[0]).toEqual({
+    expect(apiClient().lastCall('setPlayContent').params[0]).toEqual({
       uri: 'extInput:hdmi?port=1',
       output: 'extOutput:zone?zone=1',
     });
@@ -437,7 +438,7 @@ describe('SonyDevice setters', () => {
   it('setPause toggles play/pause on the active zone', async () => {
     const device = await createDevice();
     await device.setPause();
-    expect(apiAxios().lastCall('pausePlayingContent').params[0]).toEqual({ output: 'extOutput:zone?zone=1' });
+    expect(apiClient().lastCall('pausePlayingContent').params[0]).toEqual({ output: 'extOutput:zone?zone=1' });
   });
 });
 
@@ -457,8 +458,8 @@ describe('SonyDevice IRCC remote keys', () => {
 
     await (device[method] as () => Promise<void>)();
 
-    expect(soapAxios().post).toHaveBeenCalledTimes(1);
-    const [url, body] = soapAxios().post.mock.calls[0];
+    expect(soapClient().post).toHaveBeenCalledTimes(1);
+    const [url, body] = soapClient().post.mock.calls[0];
     expect(url).toBe('');
     expect(body).toContain(`<IRCCCode>${code}</IRCCCode>`);
     expect(body).toContain('urn:schemas-sony-com:service:IRCC:1');
@@ -466,12 +467,12 @@ describe('SonyDevice IRCC remote keys', () => {
 
   it('does nothing when the device has no IRCC endpoint', async () => {
     const device = await createDeviceWithoutIrcc();
-    const callsBefore = apiAxios().post.mock.calls.length;
+    const callsBefore = apiClient().post.mock.calls.length;
 
     await expect(device.setUp()).resolves.toBeUndefined();
 
     expect(instances).toHaveLength(2);
-    expect(apiAxios().post.mock.calls).toHaveLength(callsBefore);
+    expect(apiClient().post.mock.calls).toHaveLength(callsBefore);
   });
 });
 

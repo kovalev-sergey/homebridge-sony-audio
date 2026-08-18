@@ -1,9 +1,9 @@
 /* eslint-disable max-len */
 import { SonyDevice } from './sonyDevice';
 import { UnsupportedVersionApiError, GenericApiError, IncompatibleDeviceCategoryError } from './api';
-import { Client as ssdp } from 'node-ssdp';
+import { Client as ssdp } from './ssdp';
 import { Logger } from 'homebridge';
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import { httpGet, HttpError, HttpResponse } from './http';
 import { XMLParser } from 'fast-xml-parser';
 import { URL } from 'url';
 import EventEmitter from 'events';
@@ -33,7 +33,6 @@ const xmlParcer = new XMLParser({
 export class Discoverer extends EventEmitter {
   private devices: Map<string, SonyDevice | null | string>;
   private ssdpClient;
-  private axiosInstance: AxiosInstance;
   private poller?: NodeJS.Timeout;
   /**
    * Storage of the errors to prevent errors flooding
@@ -47,12 +46,9 @@ export class Discoverer extends EventEmitter {
     this.devices = new Map<string, SonyDevice>();
     this.errors = new Map<string, string>();
 
-    this.axiosInstance = axios.create();
-    this.axiosInstance.interceptors.response.use(this.responseInterceptor);
-
     // init the SSDP client
     this.ssdpClient = new ssdp({
-      // customLogger: log,
+      logger: (message: string) => this.log.debug(message),
     });
 
     this.ssdpClient.on('response', (headers: Record<string, string>, code: number) => this.handleSsdpResponse(headers, code));
@@ -76,6 +72,7 @@ export class Discoverer extends EventEmitter {
     if (this.poller) {
       clearInterval(this.poller);
     }
+    this.ssdpClient.stop();
   }
 
   handleSsdpResponse(headers: Record<string, string>, code: number) {
@@ -117,7 +114,7 @@ export class Discoverer extends EventEmitter {
     }
 
     // retrieve the device description
-    axios.get(location.href)
+    httpGet(location.href)
       .then((response) => {
         this.errors.delete(location.href); // clear error if device responded
         let deviceDescription;
@@ -181,7 +178,7 @@ export class Discoverer extends EventEmitter {
             this.log.info('Incompatible device found, skipped:', deviceFriendlyName);
           });
       })
-      .catch((err: AxiosError) => {
+      .catch((err: HttpError) => {
         // Fixed #1 to stop error log flooding when some devices illegally answer to discovering
         if (this.errors.get(location.href) !== err.message ) {
           this.log.debug(`ERROR: Can't retrieve the device description at ${location.href}: ${err}.\nIt looks like you have a problem in your network environment. All the same errors will be omitted.`);
@@ -222,7 +219,7 @@ export class Discoverer extends EventEmitter {
    * Decsription of errors [here](https://developer.sony.com/develop/audio-control-api/api-references/error-codes).
    * @param response
    */
-  responseInterceptor(response: AxiosResponse) {
+  responseInterceptor(response: HttpResponse) {
     if ('error' in response.data) {
       // TODO: add a device ip address for identification of the device
       const errMsg = `Device API got an error: ${JSON.stringify(response.data)}`;

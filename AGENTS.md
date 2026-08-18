@@ -25,15 +25,19 @@ npm start         # build + run local homebridge in debug/insecure mode
 
 - Unit tests live in `tests/*.spec.ts` (jest + ts-jest, config in `jest.config.js`,
   TS options in `tsconfig.spec.json`). Shared fakes are in `tests/helpers/`:
-  `logger.ts` (mock Homebridge `Logger`), `mockAxios.ts` (route-table axios instance),
+  `logger.ts` (mock Homebridge `Logger`), `mockHttp.ts` (route-table `HttpClient`),
   `mockWs.ts` (drivable `ws` replacement), `homebridge.ts` (fake `API` + `PlatformAccessory`
   backed by real hap-nodejs services), `hap.ts` (resolves `@homebridge/hap-nodejs` on
   Homebridge 2.x and falls back to `hap-nodejs` on 1.x — always import HAP through this
   shim in tests) and `fixtures.ts` (Audio Control API payloads).
-- Network (`axios`, `ws`, `node-ssdp`) is always mocked; `fs-extra` is exercised for real
-  against a `os.tmpdir()` directory.
+- Network (`src/http.ts`, `ws`, `src/ssdp.ts`) is always mocked in the device/discoverer specs;
+  `node:fs/promises` is exercised for real against a `os.tmpdir()` directory, `http.spec.ts`
+  runs against a real local `http` server, and `ssdp.spec.ts` fakes `dgram`/`os` because
+  multicast is not reliable in CI.
 - `tests/` also contains two manual SSDP helper scripts (`ssdp-client.ts`, `ssdp-server.ts`)
-  run ad hoc with `ts-node`; they are not part of the jest run.
+  run ad hoc with `ts-node`; they are not part of the jest run. `ssdp-server.ts` impersonates
+  a Sony device (answers M-SEARCH + serves a UPnP description over HTTP) so discovery can be
+  checked end to end without hardware.
 - CI (`.github/workflows/build.yml`) runs `npm run lint`, `npm test` then `npm run build`
   on a matrix of Node 22/24 × Homebridge 1.11.x/2.3.x.
 - Always run `npm run lint && npm test && npm run build` before considering a change done.
@@ -46,10 +50,12 @@ npm start         # build + run local homebridge in debug/insecure mode
 | `settings.ts` | `PLATFORM_NAME` (`SonyAudio`) and `PLUGIN_NAME` constants. |
 | `platform.ts` | `SonyAudioHomebridgePlatform` — cached accessory restore, discovery wiring, accessory publish/unregister. |
 | `discoverer.ts` | `Discoverer` (EventEmitter) — SSDP search for `urn:schemas-sony-com:service:ScalarWebAPI:1`, fetches & parses device description XML, emits `DiscoveryEvents.NewDeviceFound`. |
+| `ssdp.ts` | `Client` (EventEmitter) — minimal SSDP M-SEARCH client over `node:dgram` (one socket per external IPv4 interface). Replaces the `node-ssdp` package. |
+| `http.ts` | `HttpClient` / `httpGet` — minimal HTTP client over `node:http`/`node:https`, reproducing the `axios` behaviour the plugin relied on (baseURL joining, JSON sniffing, non-2xx rejection, `timeout: 0`). Replaces the `axios` package. |
 | `sonyDevice.ts` | `SonyDevice` (EventEmitter) — device model + all API calls, WebSocket notification subscriptions, emits `DEVICE_EVENTS`. |
 | `sonyAudioAccessory.ts` | `SonyAudioAccessory` — maps `SonyDevice` state/events onto HAP services & characteristics. |
 | `api.ts` | Pure declarations: request payload constants, response/notification types, API error classes. No I/O. |
-| `sonyAudioAccessorySettings.ts` | Per-accessory persisted settings (input names / visibility) stored as JSON in Homebridge storage path via `fs-extra`. |
+| `sonyAudioAccessorySettings.ts` | Per-accessory persisted settings (input names / visibility) stored as JSON in Homebridge storage path via `node:fs/promises`. |
 
 Data flow: `Discoverer` → `SonyDevice` → `platform.publishDevice()` → `SonyAudioAccessory`.
 The `SonyDevice` instance is stored in `PlatformAccessory<SonyDevice>.context`.
@@ -100,4 +106,6 @@ The `SonyDevice` instance is stored in `PlatformAccessory<SonyDevice>.context`.
 
 - `dist/` is generated — never edit it, never commit it.
 - Node >= 22 (`^22 || ^24 || ^26`), homebridge `^1.8.0 || ^2.0.0` per `engines`.
-- Dependencies are intentionally lean: `axios`, `ws`, `node-ssdp`, `fast-xml-parser`, `fs-extra`.
+- Dependencies are intentionally lean: `ws`, `fast-xml-parser`.
+  Prefer Node built-ins over new packages (persistence uses `node:fs/promises`, HTTP uses
+  `src/http.ts` on `node:http`, discovery uses `src/ssdp.ts` on `node:dgram`).
