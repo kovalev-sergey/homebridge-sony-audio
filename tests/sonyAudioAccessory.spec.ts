@@ -449,6 +449,13 @@ describe('device events', () => {
     device.emit(DEVICE_EVENTS.SOURCE, 'extInput:unknown');
     expect(tvService().getCharacteristic(Characteristic.ActiveIdentifier).value).toBe(1);
   });
+
+  it('updates the active identifier for the first input as well (#42)', async () => {
+    await buildReady();
+    device.emit(DEVICE_EVENTS.SOURCE, 'extInput:hdmi?port=1');
+    device.emit(DEVICE_EVENTS.SOURCE, 'extInput:tv');
+    expect(tvService().getCharacteristic(Characteristic.ActiveIdentifier).value).toBe(0);
+  });
 });
 
 describe('HomeKit set handlers', () => {
@@ -484,11 +491,12 @@ describe('HomeKit set handlers', () => {
     expect(device.setVolumeAbsolute).toHaveBeenCalledWith(42);
   });
 
-  it('ignores a non numeric absolute volume', () => {
+  it('answers HomeKit but skips the device on a non numeric absolute volume', () => {
     const callback = jest.fn();
     sonyAccessory.setVolumeAbsolute('loud' as never, callback);
     expect(device.setVolumeAbsolute).not.toHaveBeenCalled();
-    expect(callback).not.toHaveBeenCalled();
+    // answering is required, otherwise HomeKit waits for the callback until it times out
+    expect(callback).toHaveBeenCalledTimes(1);
   });
 
   it('mutes and unmutes', async () => {
@@ -522,11 +530,11 @@ describe('HomeKit set handlers', () => {
     expect(device.setSource).toHaveBeenCalledWith(TERMINALS[1]);
   });
 
-  it('ignores an unknown input source identifier', () => {
+  it('answers HomeKit but skips the device on an unknown input source identifier', () => {
     const callback = jest.fn();
     sonyAccessory.setSource(99, callback);
     expect(device.setSource).not.toHaveBeenCalled();
-    expect(callback).not.toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledTimes(1);
   });
 
   const remoteKeys: [number, keyof FakeDevice][] = [
@@ -677,6 +685,73 @@ describe('input source settings handlers', () => {
     await flush();
 
     expect(callback).toHaveBeenCalledWith(error);
+  });
+
+  /**
+   * HAP wraps every characteristic callback in `once()`: calling it twice throws
+   * "This callback function has already been called by someone else". A handler that
+   * chains `.then(cb).catch(cb)` calls it a second time as soon as the first call
+   * throws, which is what flooded the logs in #41 / #33 / #8.
+   */
+  describe('hap callbacks are invoked exactly once (#41)', () => {
+    /** Mimics the HAP `once()` wrapper. */
+    const onceCallback = () => {
+      const calls: any[][] = [];
+      const callback = jest.fn((...args: any[]) => {
+        calls.push(args);
+        if (calls.length > 1) {
+          throw new Error('This callback function has already been called by someone else; it can only be called one time.');
+        }
+        // the very first call throws too, like a HAP characteristic that already timed out
+        throw new Error('This callback function has already been called by someone else; it can only be called one time.');
+      });
+      return { callback, calls };
+    };
+
+    it('does not call the callback again when reading the current visibility throws', async () => {
+      const cb = onceCallback();
+      sonyAccessory.getInputSourceCurrentVisibilityState(inputServices()[0], cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call the callback again when reading the target visibility throws', async () => {
+      const cb = onceCallback();
+      sonyAccessory.getInputSourceTargetVisibilityState(inputServices()[0], cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call the callback again when persisting the visibility throws', async () => {
+      const cb = onceCallback();
+      sonyAccessory.setInputSourceTargetVisibilityState(inputServices()[0], 1, cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call the callback again when persisting a renamed input throws', async () => {
+      const cb = onceCallback();
+      sonyAccessory.setInputSourceConfiguredName(inputServices()[0], 'TV', cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call the callback again when a device command callback throws', async () => {
+      const cb = onceCallback();
+      sonyAccessory.setPower(Characteristic.Active.ACTIVE, cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call the callback again when a failing device command callback throws', async () => {
+      device.setMute = jest.fn(async () => {
+        throw new Error('boom');
+      }) as any;
+      const cb = onceCallback();
+      sonyAccessory.setMute(true, cb.callback);
+      await flush();
+      expect(cb.callback).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

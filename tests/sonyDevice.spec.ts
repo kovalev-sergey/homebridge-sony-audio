@@ -110,12 +110,36 @@ describe('SonyDevice.createDevice', () => {
     await expect(createDevice()).resolves.toBeInstanceOf(SonyDevice);
   });
 
-  it('throws UnsupportedVersionApiError when getSystemInformation version does not match', async () => {
+  it('throws UnsupportedVersionApiError when the device does not advertise getSystemInformation', async () => {
+    const patched = JSON.parse(JSON.stringify(apisInfo));
+    patched[0].apis = patched[0].apis.filter((api: any) => api.name !== 'getSystemInformation');
+    routes.getSupportedApiInfo = { result: [patched] };
+
+    await expect(createDevice()).rejects.toBeInstanceOf(UnsupportedVersionApiError);
+  });
+
+  it('asks for the newest advertised getSystemInformation version (#36, #39, #40)', async () => {
+    // Real devices list every supported version, and not necessarily in order:
+    // the 2023 receivers (STR-AZ5000ES, TA-AN1000) answer 1.4 *and* 1.6.
+    const patched = JSON.parse(JSON.stringify(apisInfo));
+    patched[0].apis[0].versions = [
+      { authLevel: '', protocols: '', version: '1.4' },
+      { authLevel: '', protocols: '', version: '1.6' },
+    ];
+    routes.getSupportedApiInfo = { result: [patched] };
+
+    await createDevice();
+
+    expect(bootstrapAxios().lastCall('getSystemInformation').version).toBe('1.6');
+  });
+
+  it('accepts a device that only advertises a getSystemInformation version unknown to the plugin', async () => {
     const patched = JSON.parse(JSON.stringify(apisInfo));
     patched[0].apis[0].versions = [{ authLevel: '', protocols: '', version: '1.5' }];
     routes.getSupportedApiInfo = { result: [patched] };
 
-    await expect(createDevice()).rejects.toBeInstanceOf(UnsupportedVersionApiError);
+    await expect(createDevice()).resolves.toBeInstanceOf(SonyDevice);
+    expect(bootstrapAxios().lastCall('getSystemInformation').version).toBe('1.5');
   });
 
   it('uses the v1.6 request when the device advertises getSystemInformation 1.6', async () => {
@@ -221,6 +245,22 @@ describe('SonyDevice terminals', () => {
   it('uses the v1.2 request when the device advertises it', async () => {
     const patched = JSON.parse(JSON.stringify(apisInfo));
     patched[2].apis[0].versions = [{ authLevel: '', protocols: '', version: '1.2' }];
+    routes.getSupportedApiInfo = { result: [patched] };
+
+    const device = await createDevice();
+    await device.getExternalTerminals();
+
+    expect(apiAxios().lastCall('getCurrentExternalTerminalsStatus').version).toBe('1.2');
+  });
+
+  it('uses the v1.2 request when the device advertises both 1.0 and 1.2 (#40)', async () => {
+    // The 2023 receivers answer with the full version list; only 1.2 returns
+    // all the inputs, the 1.0 answer is truncated to a couple of sources.
+    const patched = JSON.parse(JSON.stringify(apisInfo));
+    patched[2].apis[0].versions = [
+      { authLevel: '', protocols: '', version: '1.0' },
+      { authLevel: '', protocols: '', version: '1.2' },
+    ];
     routes.getSupportedApiInfo = { result: [patched] };
 
     const device = await createDevice();

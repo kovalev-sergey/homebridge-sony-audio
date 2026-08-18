@@ -183,6 +183,49 @@ type apiRequest = {
 };
 
 /**
+ * Compares two dotted API versions (`1.2` vs `1.10`) numerically.
+ * Returns a positive number when `a` is newer than `b`.
+ */
+export function compareApiVersions(a: string, b: string): number {
+  const partsA = a.split('.').map(p => Number.parseInt(p, 10) || 0);
+  const partsB = b.split('.').map(p => Number.parseInt(p, 10) || 0);
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const diff = (partsA[i] || 0) - (partsB[i] || 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Negotiates the version of an api method to use with the device.
+ *
+ * Devices answer `getSupportedApiInfo` with *every* version they support, in no
+ * guaranteed order (the 2023 receivers advertise `getSystemInformation` 1.4 and 1.6,
+ * and `getCurrentExternalTerminalsStatus` 1.0 and 1.2). So pick the newest version
+ * the plugin knows about, and if the device speaks none of them, fall back to the
+ * newest version the device advertises instead of declaring the device incompatible.
+ *
+ * @returns the version to use, or `null` if the device does not expose the method at all
+ */
+export function negotiateApiVersion(
+  apisInfo: SonyDeviceApiInfo[] | undefined,
+  service: string,
+  method: string,
+  knownVersions: string[],
+): string | null {
+  const api = apisInfo?.find(a => a.service === service)?.apis?.find(m => m.name === method);
+  const advertised = (api?.versions || []).map(v => v.version).filter(v => typeof v === 'string');
+  if (advertised.length === 0) {
+    return null;
+  }
+  const supported = advertised.filter(v => knownVersions.includes(v));
+  const candidates = supported.length > 0 ? supported : advertised;
+  return candidates.sort(compareApiVersions)[candidates.length - 1];
+}
+
+/**
  * Categories of devices supported by this module
  */
 const COMPATIBLE_DEVICE_CATEGORIES = [
@@ -423,14 +466,10 @@ export class SonyDevice extends EventEmitter {
     if (!this._externalTerminals) {
       // get the terminals info from device
 
-      const serviceApiInfo = this.apisInfo.find(v => v.service === 'avContent');
-      let currentExternalTerminalsVersion: string | null = null;
-    
-      const api = serviceApiInfo?.apis.find(api => api.name === 'getCurrentExternalTerminalsStatus');
-      if (api) {
-        currentExternalTerminalsVersion = api.versions?.[0]?.version || null;
-      }
-   
+      const currentExternalTerminalsVersion = negotiateApiVersion(
+        this.apisInfo, 'avContent', 'getCurrentExternalTerminalsStatus', ['1.0', '1.2'],
+      );
+
       const resTerminals = currentExternalTerminalsVersion === '1.2'
         ? await this.axiosInstance.post('/avContent', JSON.stringify(ApiRequestCurrentExternalTerminalsStatusv1_2))
         : await this.axiosInstance.post('/avContent', JSON.stringify(ApiRequestCurrentExternalTerminalsStatusv1_0));
@@ -591,21 +630,19 @@ export class SonyDevice extends EventEmitter {
     const resApiInfo = await axiosInstance.post('/guide', JSON.stringify(ApiRequestSupportedApiInfo));
     const apisInfo = resApiInfo.data.result[0];
 
-    let systemInformationVersion = null;
+    const service = 'system';
+    const systemInformationVersion = negotiateApiVersion(apisInfo, service, 'getSystemInformation', ['1.4', '1.6']);
 
-    const serviceApiInfo = apisInfo.find(v => v.service === 'system');  
-    const api = serviceApiInfo.apis.find(api => api.name === 'getSystemInformation');
-    if (api) {
-      systemInformationVersion = api.versions?.[0]?.version || null;
-    }
- 
-    const ApiRequestSystemInformation = systemInformationVersion === '1.6' ? ApiRequestSystemInformationv1_6 : ApiRequestSystemInformationv1_4;
+    // `getSystemInformation` takes no parameters in any of its versions, so an unknown
+    // (newer) version advertised by the device can safely be requested as is.
+    const ApiRequestSystemInformation = systemInformationVersion === '1.4' ? ApiRequestSystemInformationv1_4
+      : systemInformationVersion === '1.6' ? ApiRequestSystemInformationv1_6
+        : { ...ApiRequestSystemInformationv1_4, version: systemInformationVersion || '' };
 
     const device = new SonyDevice(baseUrl, upnpUrl, udn, apisInfo, log);
     
     // Gets general system information for the device.
     // check the request for API version compliance
-    const service = 'system';
     if (!device.validateRequest(service, ApiRequestSystemInformation)) {
       throw new UnsupportedVersionApiError(`The specified api version is not supported by the device ${baseUrl.hostname}`);
     }

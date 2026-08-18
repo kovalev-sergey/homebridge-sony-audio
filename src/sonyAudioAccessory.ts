@@ -300,6 +300,24 @@ export class SonyAudioAccessory {
   }
 
   /**
+   * Invokes a HAP characteristic callback, swallowing (and logging) any error it throws.
+   *
+   * HAP wraps every callback in `once()`, so a callback that is invoked a second time -
+   * or one that HAP has already answered itself after a timeout - throws
+   * "This callback function has already been called by someone else". Such an exception
+   * must never leak into the promise chain, otherwise the rejection handler would call
+   * the very same callback again and flood the log. See #41, #33, #8.
+   */
+  private invokeCallback(callback: CharacteristicSetCallback | CharacteristicGetCallback,
+    ...args: [(Error | null | undefined)?, CharacteristicValue?]) {
+    try {
+      (callback as (...cbArgs: unknown[]) => void)(...args);
+    } catch (err) {
+      this.platform.log.debug(`The characteristic callback has been already answered: ${err}`);
+    }
+  }
+
+  /**
    * Wrap the CharacteristicSetCallback callback for loggin the error
    * and run heartbeat if the device is not available
    * @param callback 
@@ -310,7 +328,17 @@ export class SonyAudioAccessory {
       // reinit the characteristics because we assume that the connection with the device is lost
       this.initAccessoryCharacteristics();
     }
-    callback(error, value);
+    this.invokeCallback(callback, error, value);
+  }
+
+  /**
+   * Answers a HAP `set` callback when the given device command settles, exactly once.
+   */
+  private answerOnSettled(promise: Promise<unknown>, callback: CharacteristicSetCallback) {
+    promise.then(
+      () => this.callbackWrapper(callback),
+      err => this.callbackWrapper(callback, err),
+    );
   }
 
   onChangeVolume(volume: number) {
@@ -334,7 +362,8 @@ export class SonyAudioAccessory {
     if (terminal) {
       const inputSubtype = this.getInputSubtype(terminal);
       const inputSourceId = this.inputSourceIds.get(inputSubtype);
-      if (inputSourceId) {
+      // the identifier of the first input is 0, so it must not be treated as "not found"
+      if (inputSourceId !== undefined) {
         this.serviceTv.updateCharacteristic(this.platform.Characteristic.ActiveIdentifier, inputSourceId);
         this.platform.log.debug('Set Characteristic ActiveIdentifier -> ', inputSourceId);
       }
@@ -344,43 +373,38 @@ export class SonyAudioAccessory {
   setVolume(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Characteristic VolumeSelector -> ', value);
     const volumeSelector = value === this.platform.Characteristic.VolumeSelector.INCREMENT ? 0 : 1;
-    this.device.setVolume(volumeSelector)
-      .then(() => this.callbackWrapper(callback))
-      .catch(err => this.callbackWrapper(callback, err));
+    this.answerOnSettled(this.device.setVolume(volumeSelector), callback);
   }
 
   setVolumeAbsolute(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-    if (typeof value === 'number') {
-      this.platform.log.debug('Set Characteristic Volume -> ', value);
-      this.device.setVolumeAbsolute(value)
-        .then(() => this.callbackWrapper(callback))
-        .catch(err => this.callbackWrapper(callback, err));
+    if (typeof value !== 'number') {
+      this.callbackWrapper(callback);
+      return;
     }
+    this.platform.log.debug('Set Characteristic Volume -> ', value);
+    this.answerOnSettled(this.device.setVolumeAbsolute(value), callback);
   }
 
   setMute(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Characteristic Mute -> ', value);
     const mute = !!value;
-    this.device.setMute(mute)
-      .then(() => this.callbackWrapper(callback))
-      .catch(err => this.callbackWrapper(callback, err));
+    this.answerOnSettled(this.device.setMute(mute), callback);
   }
 
   setPower(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Power Characteristic Active -> ', value);
-    this.device.setPower(value === this.platform.Characteristic.Active.ACTIVE)
-      .then(() => this.callbackWrapper(callback))
-      .catch(err => this.callbackWrapper(callback, err));
+    this.answerOnSettled(this.device.setPower(value === this.platform.Characteristic.Active.ACTIVE), callback);
   }
 
   setSource(value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Characteristic ActiveIdentifier -> ', value);
     const terminal = this.inputSources.get(value as number);
-    if (terminal) {
-      this.device.setSource(terminal)
-        .then(() => this.callbackWrapper(callback))
-        .catch(err => this.callbackWrapper(callback, err));
+    if (!terminal) {
+      // answer anyway, otherwise HomeKit waits for the callback until it times out
+      this.callbackWrapper(callback);
+      return;
     }
+    this.answerOnSettled(this.device.setSource(terminal), callback);
   }
 
   setRemoteKey(value: CharacteristicValue, callback: CharacteristicSetCallback) {
@@ -388,44 +412,28 @@ export class SonyAudioAccessory {
 
     switch (value) {
       case this.platform.Characteristic.RemoteKey.ARROW_UP:
-        this.device.setUp()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setUp(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_DOWN:
-        this.device.setDown()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setDown(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_RIGHT:
-        this.device.setRigth()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setRigth(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.ARROW_LEFT:
-        this.device.setLeft()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setLeft(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.SELECT:
-        this.device.setSelect()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setSelect(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.BACK:
-        this.device.setBack()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setBack(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.INFORMATION:
-        this.device.setInformation()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setInformation(), callback);
         break;
       case this.platform.Characteristic.RemoteKey.PLAY_PAUSE:
-        this.device.setPause()
-          .then(() => this.callbackWrapper(callback))
-          .catch(err => this.callbackWrapper(callback, err));
+        this.answerOnSettled(this.device.setPause(), callback);
         break;
       default:
         this.callbackWrapper(callback);
@@ -442,30 +450,37 @@ export class SonyAudioAccessory {
     const inputName = getHomeKitName(String(value), 'Input');
     this.platform.log.debug('Set Characteristic InputSource ConfiguredName -> ', inputName);
     this.accessorySettings.setInputName(serviceInputSource.subtype!, inputName)
-      .then(() => callback(null))
-      .catch(err => callback(err));
+      .then(
+        () => this.invokeCallback(callback, null),
+        err => this.invokeCallback(callback, err),
+      );
   }
 
   setInputSourceTargetVisibilityState(serviceInputSource: Service, value: CharacteristicValue, callback: CharacteristicSetCallback) {
     this.platform.log.debug('Set Characteristic InputSource Target Visibility State -> ', value);
     this.accessorySettings.setInputVisibility(serviceInputSource.subtype!, value as 0 | 1)
       .then(inputSettings => serviceInputSource.updateCharacteristic(this.platform.Characteristic.CurrentVisibilityState, inputSettings.visibilityState!))
-      .then(() => callback(null))
-      .catch(err => callback(err));
+      .then(
+        () => this.invokeCallback(callback, null),
+        err => this.invokeCallback(callback, err),
+      );
   }
 
   getInputSourceCurrentVisibilityState(serviceInputSource: Service, callback: CharacteristicGetCallback) {
     this.platform.log.debug('Get Characteristic InputSource Current Visibility State');
     this.accessorySettings.getInputVisibility(serviceInputSource.subtype!, serviceInputSource.getCharacteristic(this.platform.Characteristic.CurrentVisibilityState).value as 0| 1)
-      .then(inputVisibility => callback(null, inputVisibility))
-      .catch(err => callback(err));
-    
+      .then(
+        inputVisibility => this.invokeCallback(callback, null, inputVisibility),
+        err => this.invokeCallback(callback, err),
+      );
   }
 
   getInputSourceTargetVisibilityState(serviceInputSource: Service, callback: CharacteristicGetCallback) {
     this.platform.log.debug('Get Characteristic InputSource Target Visibility State');
     this.accessorySettings.getInputVisibility(serviceInputSource.subtype!, serviceInputSource.getCharacteristic(this.platform.Characteristic.TargetVisibilityState).value as 0| 1)
-      .then(inputVisibility => callback(null, inputVisibility))
-      .catch(err => callback(err));
+      .then(
+        inputVisibility => this.invokeCallback(callback, null, inputVisibility),
+        err => this.invokeCallback(callback, err),
+      );
   }
 }
